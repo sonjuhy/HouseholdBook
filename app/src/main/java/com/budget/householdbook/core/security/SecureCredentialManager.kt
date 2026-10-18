@@ -4,7 +4,8 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import com.budget.householdbook.domain.model.KbQuickCredentials
+import com.budget.householdbook.domain.model.DEFAULT_QUICK_INQUIRY_INSTITUTION_ID
+import com.budget.householdbook.domain.model.QuickInquiryCredentials
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,10 +25,11 @@ class SecureCredentialManager(context: Context) {
     private val keyAlias = "HouseholdBook_KB_Quick_AES_Key"
 
     private val _credentialsFlow = MutableStateFlow(loadCredentials())
-    val credentialsFlow: StateFlow<KbQuickCredentials> = _credentialsFlow.asStateFlow()
+    val credentialsFlow: StateFlow<QuickInquiryCredentials> = _credentialsFlow.asStateFlow()
 
-    fun saveCredentials(credentials: KbQuickCredentials) {
+    fun saveCredentials(credentials: QuickInquiryCredentials) {
         prefs.edit()
+            .putString("inst", credentials.institutionId)
             .putString("acc", encrypt(credentials.accountNumber.trim()))
             .putString("birth", encrypt(credentials.birthOrBizNumber.trim()))
             .putString("pw4", encrypt(credentials.quickPassword4Digit.trim()))
@@ -37,14 +39,15 @@ class SecureCredentialManager(context: Context) {
 
     fun clearCredentials() {
         prefs.edit().clear().apply()
-        _credentialsFlow.value = KbQuickCredentials()
+        _credentialsFlow.value = QuickInquiryCredentials()
     }
 
-    private fun loadCredentials(): KbQuickCredentials {
+    private fun loadCredentials(): QuickInquiryCredentials {
         val acc = prefs.getString("acc", null)?.let { decrypt(it) }.orEmpty()
         val birth = prefs.getString("birth", null)?.let { decrypt(it) }.orEmpty()
         val pw4 = prefs.getString("pw4", null)?.let { decrypt(it) }.orEmpty()
-        return KbQuickCredentials(
+        return QuickInquiryCredentials(
+            institutionId = prefs.getString("inst", null) ?: DEFAULT_QUICK_INQUIRY_INSTITUTION_ID,
             accountNumber = acc,
             birthOrBizNumber = birth,
             quickPassword4Digit = pw4

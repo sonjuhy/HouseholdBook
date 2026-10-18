@@ -131,7 +131,9 @@ data class MealPriceConfig(
 /**
  * [Beta] KB국민은행 무로그인 빠른조회 자격증명 모델
  */
-data class KbQuickCredentials(
+data class QuickInquiryCredentials(
+    /** 조회할 은행 ([FinancialInstitutions] ID, 현재 앱 연동은 KB국민은행만 지원) */
+    val institutionId: String = DEFAULT_QUICK_INQUIRY_INSTITUTION_ID,
     val accountNumber: String = "",
     val birthOrBizNumber: String = "",
     val quickPassword4Digit: String = ""
@@ -139,6 +141,8 @@ data class KbQuickCredentials(
     val isConfigured: Boolean
         get() = accountNumber.isNotBlank() && birthOrBizNumber.isNotBlank()
 }
+
+const val DEFAULT_QUICK_INQUIRY_INSTITUTION_ID = "KB"
 
 /**
  * 정산 주기 내 집밥 횟수·절약 금액 합계 (위젯용, Room 집계 쿼리 결과)

@@ -1,5 +1,6 @@
 package com.budget.householdbook.domain.usecase
 
+import com.budget.householdbook.domain.model.FinancialInstitutions
 import com.budget.householdbook.domain.model.ThemeMode
 import com.budget.householdbook.domain.repository.AutomationRuleRepository
 import com.budget.householdbook.domain.repository.MealWidgetRefresher
@@ -20,6 +21,13 @@ class SelectSpaceUseCase(
 class UpdateThemeModeUseCase(private val settingsRepository: SettingsRepository) {
     suspend operator fun invoke(themeMode: ThemeMode) {
         settingsRepository.setThemeMode(themeMode)
+    }
+}
+
+/** 알림·문자를 읽어올 금융기관 선택 저장 (목록에 없는 ID는 버림) */
+class UpdateEnabledInstitutionsUseCase(private val settingsRepository: SettingsRepository) {
+    suspend operator fun invoke(ids: Set<String>) {
+        settingsRepository.setEnabledInstitutions(ids.intersect(FinancialInstitutions.DEFAULT_ENABLED_IDS))
     }
 }
 

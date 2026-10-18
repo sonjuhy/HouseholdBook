@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 
 /**
- * KB스타뱅킹, KB Pay, 토스(Toss), 카카오뱅크 등 금융 앱의 푸시 알림을 실시간 감지하여
+ * 시중·인터넷·지방은행, 상호금융, 카드사 앱(목록: FinancialInstitutions)의 푸시 알림을 실시간 감지하여
  * 즉시 장부에 등록하지 않고 등록 대기 큐(PendingQueue)에 적재하는 서비스
  */
 class FinancialNotificationListenerService : NotificationListenerService() {
@@ -48,7 +48,8 @@ class FinancialNotificationListenerService : NotificationListenerService() {
                 sourceType = IngestionSource.APP_NOTIFICATION,
                 sourceAppName = appName,
                 title = title,
-                body = body
+                body = body,
+                sourcePackage = packageName
             )
         }
     }

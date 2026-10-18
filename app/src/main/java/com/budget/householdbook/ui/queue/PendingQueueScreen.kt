@@ -171,7 +171,7 @@ fun PendingQueueScreen(
                             icon = Icons.Default.Notifications
                         )
                         IosTintedButton(
-                            text = "KB 계좌 내역 불러오기",
+                            text = "계좌 내역 불러오기",
                             onClick = onRunKbQuickInquiryBeta,
                             modifier = Modifier.weight(1f),
                             icon = Icons.Default.Sync
@@ -209,7 +209,7 @@ fun PendingQueueScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "상단 '예시 알림 받아보기'나 'KB 계좌 내역 불러오기' 버튼으로\n새 내역을 불러올 수 있습니다.",
+                            text = "상단 '예시 알림 받아보기'나 '계좌 내역 불러오기' 버튼으로\n새 내역을 불러올 수 있습니다.",
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
                             color = IosSystemGray

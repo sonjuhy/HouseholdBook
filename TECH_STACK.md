@@ -60,7 +60,11 @@
   - `TopLevelDestination` enum이 라우트·탭 이름·헤더 제목·아이콘을 묶고, `HouseholdNavHost`(`composable<Route> { }`)가 화면을 연결합니다. 현재 탭은 `currentBackStackEntryAsState()` + `hasRoute()`로 판별해 헤더 제목과 플로팅 캡슐 탭 바(`IosFloatingCapsuleTabBar`) 선택 상태에 반영합니다.
   - 탭 전환(`navigateToTopLevel`)은 `popUpTo(시작 화면) { saveState = true }` + `launchSingleTop` + `restoreState`로 탭별 스크롤 상태를 보존하고, 화면 전환 애니메이션은 `EnterTransition.None`으로 꺼서 기존처럼 즉시 바뀝니다. 홈이 아닌 탭에서 뒤로 가기를 누르면 홈으로 돌아갑니다.
 
-### 2.5. 자동 수집 및 `[Beta]` KB 무로그인 빠른조회 스택
+### 2.5. 자동 수집 및 `[Beta]` 은행 무로그인 빠른조회 스택
+0. **금융기관 목록 (`domain/model/FinancialInstitutions.kt`)**:
+   - 은행 23곳 + 카드사 3곳의 ID·표시 이름·분류·앱 패키지·문자 별칭·빠른조회 지원 상태를 한곳에서 관리합니다. 패키지 이름은 Google Play 스토어 상세 페이지로 확인했습니다 (2026-10).
+   - 알림은 패키지로, 문자는 본문 별칭(긴 것부터 비교: `KB국민카드`가 `KB국민`보다 우선)으로 금융기관을 판별하고, `FinancialParserEngine`은 판별된 금융기관 이름만 가맹점명에서 지웁니다.
+   - 사용자가 끈 금융기관은 `IngestRawNotificationUseCase`에서 걸러냅니다.
 1. **푸시 알림 수집 (`NotificationListenerService`)**:
    - Android 프레임워크 기본 API 사용 (`AndroidManifest.xml`에 `BIND_NOTIFICATION_LISTENER_SERVICE` 권한과 함께 등록).
    - 프로세스 종료 후 알림 유실 방지를 위해 `onListenerDisconnected()`에서 `requestRebind()` 호출 필수.
@@ -69,7 +73,8 @@
 3. **`[Beta]` KB국민은행 무로그인 빠른조회 스크래핑 (`OkHttp` + `Jsoup` / `WebView` Fallback)**:
    - `com.squareup.okhttp3:okhttp`: 빠른조회 페이지 HTTP POST 요청 및 세션/인코딩(`UTF-8` / `EUC-KR`) 처리.
    - `org.jsoup:jsoup`: 응답 HTML 테이블에서 거래일시, 출금액, 입금액, 잔액, 적요를 추출.
-   - 금융사 웹페이지의 보안 스크립트나 동적 렌더링 변경에 유연하게 대응하기 위해 `QuickInquiryFetcher` 인터페이스로 추상화하며, 필요 시 Headless `WebView` 브릿지 구현체로 교체 가능하도록 설계합니다.
+   - 은행별 연동은 `data/ingestion/kbquick/QuickInquiryProvider.kt` 인터페이스로 추상화하고, `KbQuickInquiryRepositoryImpl`이 저장된 자격증명의 `institutionId`에 맞는 provider를 골라 실행합니다 (현재 `KbQuickInquiryScraper`만 등록). 금융사 웹페이지의 보안 스크립트나 동적 렌더링 변경에 대응해야 하면 Headless `WebView` 기반 provider로 교체할 수 있습니다.
+   - 자격증명 모델은 `QuickInquiryCredentials`(은행 ID + 계좌번호 + 생년월일 + 비밀번호 4자리)이며, 은행 ID는 평문, 나머지는 Keystore AES/GCM으로 암호화해 저장합니다.
 
 ### 2.6. Pro 티어 멀티유저 동기화 및 백그라운드 작업
 1. **현재 동기화 방식 (`data/sync/RemoteSyncManager.kt`)**:

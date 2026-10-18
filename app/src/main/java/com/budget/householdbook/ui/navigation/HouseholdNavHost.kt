@@ -118,11 +118,12 @@ fun HouseholdNavHost(
                     viewModel.invitePartnerByGoogleEmail(partnerEmail, partnerName, inviteCode)
                 },
                 onUpdateKbAutoInquiry = { enabled, hours -> viewModel.updateKbAutoInquiry(enabled, hours) },
-                onSaveKbCredentials = { acc, birth, pw, realName ->
-                    viewModel.saveKbQuickCredentials(acc, birth, pw, realName)
+                onSaveKbCredentials = { institutionId, acc, birth, pw, realName ->
+                    viewModel.saveQuickInquiryCredentials(institutionId, acc, birth, pw, realName)
                 },
                 onRemoveIgnoredKeyword = { viewModel.removeIgnoredKeyword(it) },
-                onInsertSampleData = { viewModel.insertSampleData() }
+                onInsertSampleData = { viewModel.insertSampleData() },
+                onUpdateEnabledInstitutions = { viewModel.updateEnabledInstitutions(it) }
             )
         }
     }

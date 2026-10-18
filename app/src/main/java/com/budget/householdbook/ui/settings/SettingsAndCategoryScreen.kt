@@ -69,6 +69,7 @@ import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.data.local.entity.CategoryEntity
 import com.budget.householdbook.data.sync.RemoteSyncManager
 import com.budget.householdbook.data.work.BackgroundWorkScheduler
+import com.budget.householdbook.domain.model.FinancialInstitutions
 import com.budget.householdbook.domain.model.ThemeMode
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.UserTier
@@ -98,10 +99,11 @@ fun SettingsAndCategoryScreen(
     onSignInGoogle: (manualEmail: String?, manualName: String?) -> Unit,
     onSignOutGoogle: () -> Unit,
     onInviteByGoogleEmail: (partnerEmail: String, partnerName: String, inviteCode: String) -> Unit,
-    onSaveKbCredentials: (String, String, String, String) -> Unit,
+    onSaveKbCredentials: (institutionId: String, accountNo: String, birthOrBiz: String, pw4: String, realName: String) -> Unit,
     onUpdateKbAutoInquiry: (enabled: Boolean, intervalHours: Int) -> Unit,
     onRemoveIgnoredKeyword: (Long) -> Unit,
-    onInsertSampleData: () -> Unit
+    onInsertSampleData: () -> Unit,
+    onUpdateEnabledInstitutions: (Set<String>) -> Unit
 ) {
     val context = LocalContext.current
     // 초대번호·멤버는 현재 선택된 공간과 무관하게 항상 '공통 생활비' 공간 기준
@@ -124,6 +126,7 @@ fun SettingsAndCategoryScreen(
     var showGoogleLoginDialog by remember { mutableStateOf(false) }
     var showKbSetupDialog by remember { mutableStateOf(false) }
     var showMemberShareDialog by remember { mutableStateOf(false) }
+    var showInstitutionPicker by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -474,14 +477,14 @@ fun SettingsAndCategoryScreen(
             }
         }
 
-        // 3. 결제 알림 및 KB국민은행 빠른조회 설정
+        // 3. 결제 알림 및 은행 계좌 빠른조회 설정
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 IosSectionHeader(title = "결제 알림 및 은행 내역 자동 불러오기")
 
                 IosInsetGroupedCard(contentPadding = PaddingValues(16.dp)) {
                     Text(
-                        text = "은행·카드사 앱 알림과 문자를 자동으로 읽어옵니다.\n놓친 내역은 KB국민은행 빠른조회로 한 번에 불러올 수 있습니다.",
+                        text = "은행·카드사 앱 알림과 문자를 자동으로 읽어옵니다.\n놓친 내역은 은행 계좌 빠른조회로 한 번에 불러올 수 있습니다.",
                         fontSize = 12.sp,
                         lineHeight = 18.sp,
                         color = IosSystemGray
@@ -495,9 +498,9 @@ fun SettingsAndCategoryScreen(
                     ) {
                         IosTintedButton(
                             text = if (uiState.kbCredentials.isConfigured) {
-                                "KB 빠른조회 계좌 수정"
+                                "${FinancialInstitutions.byId(uiState.kbCredentials.institutionId)?.displayName ?: "은행"} 빠른조회 수정"
                             } else {
-                                "KB 빠른조회 계좌 등록"
+                                "계좌 빠른조회 등록"
                             },
                             onClick = { showKbSetupDialog = true },
                             modifier = Modifier.weight(1f),
@@ -527,6 +530,36 @@ fun SettingsAndCategoryScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    // 알림·문자를 읽어올 금융기관 선택 (시중·인터넷·지방은행, 상호금융, 카드사)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    IosHairlineDivider()
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 10.dp)
+                        ) {
+                            Text(
+                                text = "알림을 읽어올 금융사",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = institutionSelectionSummary(uiState.settings.enabledInstitutionIds),
+                                fontSize = 12.sp,
+                                color = IosSystemGray
+                            )
+                        }
+                        IosTintedButton(
+                            text = "선택",
+                            onClick = { showInstitutionPicker = true }
+                        )
+                    }
+
                     // [Beta] KB 빠른조회 백그라운드 자동 불러오기 (계좌 등록 후 사용 가능)
                     Spacer(modifier = Modifier.height(12.dp))
                     IosHairlineDivider()
@@ -541,7 +574,7 @@ fun SettingsAndCategoryScreen(
                                 .padding(end = 10.dp)
                         ) {
                             Text(
-                                text = "KB 계좌 내역 자동 불러오기 [Beta]",
+                                text = "계좌 내역 자동 불러오기 [Beta]",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -549,7 +582,7 @@ fun SettingsAndCategoryScreen(
                                 text = if (uiState.kbCredentials.isConfigured) {
                                     "켜두면 인터넷이 연결되어 있을 때 정해진 간격으로\n새 내역을 대기내역에 넣어둡니다."
                                 } else {
-                                    "먼저 'KB 빠른조회 계좌 등록'을 해주세요."
+                                    "먼저 '계좌 빠른조회 등록'을 해주세요."
                                 },
                                 fontSize = 12.sp,
                                 lineHeight = 17.sp,
@@ -854,73 +887,27 @@ fun SettingsAndCategoryScreen(
         )
     }
 
-    // KB국민은행 빠른조회 계좌 설정 다이얼로그
-    if (showKbSetupDialog) {
-        val creds = uiState.kbCredentials
-        var accText by remember(creds) { mutableStateOf(creds.accountNumber.ifBlank { "110-123-456789" }) }
-        var birthText by remember(creds) { mutableStateOf(creds.birthOrBizNumber.ifBlank { "950101" }) }
-        var pwText by remember(creds) { mutableStateOf(creds.quickPassword4Digit.ifBlank { "1234" }) }
-        var realNameText by remember(uiState.settings) { mutableStateOf(uiState.settings.userRealName) }
+    if (showInstitutionPicker) {
+        InstitutionPickerDialog(
+            enabledIds = uiState.settings.enabledInstitutionIds,
+            onConfirm = { ids ->
+                onUpdateEnabledInstitutions(ids)
+                showInstitutionPicker = false
+            },
+            onDismiss = { showInstitutionPicker = false }
+        )
+    }
 
-        AlertDialog(
-            onDismissRequest = { showKbSetupDialog = false },
-            title = { Text("KB국민은행 빠른조회 계좌 설정") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "입력하신 계좌 정보는 다른 곳으로 전송되지 않고 내 휴대폰 안에만 안전하게 잠금 보관됩니다.\n최근 입출금 내역을 불러올 때만 사용됩니다.",
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        color = IosSystemGray
-                    )
-                    OutlinedTextField(
-                        value = accText,
-                        onValueChange = { accText = it },
-                        label = { Text("KB국민은행 계좌번호") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = birthText,
-                        onValueChange = { birthText = it.filter { ch -> ch.isDigit() }.take(10) },
-                        label = { Text("생년월일(6자리) 또는 사업자번호") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = pwText,
-                        onValueChange = { pwText = it.filter { ch -> ch.isDigit() }.take(4) },
-                        label = { Text("빠른조회 비밀번호 (4자리)") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = realNameText,
-                        onValueChange = { realNameText = it },
-                        label = { Text("본인 이름 (내 계좌끼리 이체한 내역 자동 구분용)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+    // 은행 계좌 빠른조회 설정 다이얼로그 (은행 선택 → 지원 은행이면 조회 정보 입력)
+    if (showKbSetupDialog) {
+        QuickInquirySetupDialog(
+            credentials = uiState.kbCredentials,
+            userRealName = uiState.settings.userRealName,
+            onSave = { institutionId, acc, birth, pw, realName ->
+                onSaveKbCredentials(institutionId, acc, birth, pw, realName)
+                showKbSetupDialog = false
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onSaveKbCredentials(accText, birthText, pwText, realNameText)
-                        showKbSetupDialog = false
-                    }
-                ) {
-                    Text("안전하게 저장", maxLines = 1, softWrap = false)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showKbSetupDialog = false }) {
-                    Text("취소", maxLines = 1, softWrap = false)
-                }
-            }
+            onDismiss = { showKbSetupDialog = false }
         )
     }
 

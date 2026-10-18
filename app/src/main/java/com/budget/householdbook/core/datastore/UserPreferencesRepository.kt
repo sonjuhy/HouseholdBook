@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.budget.householdbook.domain.model.FinancialInstitutions
 import androidx.datastore.preferences.preferencesDataStore
 import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.domain.model.MealPriceConfig
@@ -29,7 +31,9 @@ data class AppUserSettings(
     val mealPriceConfig: MealPriceConfig = MealPriceConfig(),
     val isSeedCompleted: Boolean = false,
     val kbAutoInquiryEnabled: Boolean = false,
-    val kbAutoInquiryIntervalHours: Int = DEFAULT_KB_AUTO_INQUIRY_HOURS
+    val kbAutoInquiryIntervalHours: Int = DEFAULT_KB_AUTO_INQUIRY_HOURS,
+    /** 알림·문자를 읽어올 금융기관 ID ([FinancialInstitutions]) */
+    val enabledInstitutionIds: Set<String> = FinancialInstitutions.DEFAULT_ENABLED_IDS
 )
 
 const val DEFAULT_KB_AUTO_INQUIRY_HOURS = 6
@@ -51,6 +55,7 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
         val IS_SEED_COMPLETED = booleanPreferencesKey("is_seed_completed")
         val KB_AUTO_INQUIRY_ENABLED = booleanPreferencesKey("kb_auto_inquiry_enabled")
         val KB_AUTO_INQUIRY_HOURS = intPreferencesKey("kb_auto_inquiry_hours")
+        val ENABLED_INSTITUTIONS = stringSetPreferencesKey("enabled_institution_ids")
     }
 
     override val userSettingsFlow: Flow<AppUserSettings> = context.dataStore.data.map { prefs ->
@@ -74,7 +79,8 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
             ),
             isSeedCompleted = prefs[Keys.IS_SEED_COMPLETED] ?: false,
             kbAutoInquiryEnabled = prefs[Keys.KB_AUTO_INQUIRY_ENABLED] ?: false,
-            kbAutoInquiryIntervalHours = prefs[Keys.KB_AUTO_INQUIRY_HOURS] ?: DEFAULT_KB_AUTO_INQUIRY_HOURS
+            kbAutoInquiryIntervalHours = prefs[Keys.KB_AUTO_INQUIRY_HOURS] ?: DEFAULT_KB_AUTO_INQUIRY_HOURS,
+            enabledInstitutionIds = prefs[Keys.ENABLED_INSTITUTIONS] ?: FinancialInstitutions.DEFAULT_ENABLED_IDS
         )
     }
 
@@ -132,6 +138,10 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
             prefs[Keys.KB_AUTO_INQUIRY_ENABLED] = enabled
             prefs[Keys.KB_AUTO_INQUIRY_HOURS] = intervalHours
         }
+    }
+
+    override suspend fun setEnabledInstitutions(ids: Set<String>) {
+        context.dataStore.edit { it[Keys.ENABLED_INSTITUTIONS] = ids }
     }
 
     override suspend fun markSeedCompleted() {

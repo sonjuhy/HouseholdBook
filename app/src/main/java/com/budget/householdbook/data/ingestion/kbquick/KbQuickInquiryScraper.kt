@@ -3,7 +3,8 @@ package com.budget.householdbook.data.ingestion.kbquick
 import com.budget.householdbook.data.ingestion.parser.FinancialParserEngine
 import com.budget.householdbook.data.ingestion.parser.ParsedNotificationDraft
 import com.budget.householdbook.domain.model.IngestionSource
-import com.budget.householdbook.domain.model.KbQuickCredentials
+import com.budget.householdbook.domain.model.DEFAULT_QUICK_INQUIRY_INSTITUTION_ID
+import com.budget.householdbook.domain.model.QuickInquiryCredentials
 import com.budget.householdbook.domain.model.TransactionType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,15 +20,18 @@ import java.util.concurrent.TimeUnit
  * - 실제 금융망 연결이 제한된 환경이나 테스트 계좌 입력 시에도 워크플로우를 즉시 검증할 수 있도록
  *   HTML 파서와 안전한 시뮬레이션 폴백을 함께 지원합니다.
  */
-class KbQuickInquiryScraper {
+class KbQuickInquiryScraper : QuickInquiryProvider {
+
+    override val institutionId: String = DEFAULT_QUICK_INQUIRY_INSTITUTION_ID
+
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    suspend fun fetchRecentTransactions(
-        credentials: KbQuickCredentials,
+    override suspend fun fetchRecentTransactions(
+        credentials: QuickInquiryCredentials,
         userRealName: String
     ): Result<List<ParsedNotificationDraft>> = withContext(Dispatchers.IO) {
         if (!credentials.isConfigured) {

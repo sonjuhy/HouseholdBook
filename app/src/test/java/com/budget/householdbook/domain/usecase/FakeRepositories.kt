@@ -10,7 +10,7 @@ import com.budget.householdbook.data.local.entity.MerchantCategoryRuleEntity
 import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.data.sync.GoogleLoginResult
-import com.budget.householdbook.domain.model.KbQuickCredentials
+import com.budget.householdbook.domain.model.QuickInquiryCredentials
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.MealPriceConfig
 import com.budget.householdbook.domain.model.QueueKind
@@ -63,6 +63,9 @@ class FakeSettingsRepository(initial: AppUserSettings = AppUserSettings()) : Set
     override suspend fun updateMealPriceConfig(config: MealPriceConfig) { state.value = state.value.copy(mealPriceConfig = config) }
     override suspend fun setKbAutoInquiry(enabled: Boolean, intervalHours: Int) {
         state.value = state.value.copy(kbAutoInquiryEnabled = enabled, kbAutoInquiryIntervalHours = intervalHours)
+    }
+    override suspend fun setEnabledInstitutions(ids: Set<String>) {
+        state.value = state.value.copy(enabledInstitutionIds = ids)
     }
     override suspend fun markSeedCompleted() { state.value = state.value.copy(isSeedCompleted = true) }
 }
@@ -244,11 +247,11 @@ class FakeSharedSyncRepository : SharedSyncRepository {
 }
 
 class FakeKbQuickInquiryRepository(
-    credentials: KbQuickCredentials = KbQuickCredentials(),
+    credentials: QuickInquiryCredentials = QuickInquiryCredentials(),
     var drafts: Result<List<ParsedNotificationDraft>> = Result.success(emptyList())
 ) : KbQuickInquiryRepository {
     override val credentialsFlow = MutableStateFlow(credentials)
-    override fun saveCredentials(credentials: KbQuickCredentials) { credentialsFlow.value = credentials }
+    override fun saveCredentials(credentials: QuickInquiryCredentials) { credentialsFlow.value = credentials }
     override suspend fun fetchRecentTransactions(userRealName: String) = drafts
 }
 

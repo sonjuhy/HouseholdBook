@@ -7,6 +7,7 @@ import com.budget.householdbook.core.datastore.UserPreferencesRepository
 import com.budget.householdbook.core.security.SecureCredentialManager
 import com.budget.householdbook.data.ingestion.kbquick.KbQuickInquiryRepositoryImpl
 import com.budget.householdbook.data.ingestion.kbquick.KbQuickInquiryScraper
+import com.budget.householdbook.data.ingestion.kbquick.QuickInquiryProvider
 import com.budget.householdbook.data.repository.RoomAutomationRuleRepository
 import com.budget.householdbook.data.repository.RoomCategoryRepository
 import com.budget.householdbook.data.repository.RoomLedgerSpaceRepository
@@ -41,6 +42,7 @@ import com.budget.householdbook.domain.usecase.CancelTransactionUseCase
 import com.budget.householdbook.domain.usecase.CategoryUseCases
 import com.budget.householdbook.domain.usecase.DeleteCategoryUseCase
 import com.budget.householdbook.domain.usecase.DeleteIgnoredKeywordUseCase
+import com.budget.householdbook.domain.usecase.UpdateEnabledInstitutionsUseCase
 import com.budget.householdbook.domain.usecase.DeleteMealLogUseCase
 import com.budget.householdbook.domain.usecase.DeleteTransactionUseCase
 import com.budget.householdbook.domain.usecase.DismissPendingItemUseCase
@@ -124,7 +126,13 @@ val repositoryModule = module {
     singleOf(::RoomMealRepository) { bind<MealRepository>() }
     singleOf(::RoomAutomationRuleRepository) { bind<AutomationRuleRepository>() }
     singleOf(::FirebaseSharedSyncRepository) { bind<SharedSyncRepository>() }
-    singleOf(::KbQuickInquiryRepositoryImpl) { bind<KbQuickInquiryRepository>() }
+    // 은행별 빠른조회 연동 목록 (은행을 추가하면 여기에 등록)
+    single<KbQuickInquiryRepository> {
+        KbQuickInquiryRepositoryImpl(
+            credentialManager = get(),
+            providers = listOf<QuickInquiryProvider>(get<KbQuickInquiryScraper>())
+        )
+    }
     single<MealWidgetRefresher> { AndroidMealWidgetRefresher(androidContext()) }
 }
 
@@ -182,6 +190,7 @@ val useCaseModule = module {
     factoryOf(::SelectSpaceUseCase)
     factoryOf(::UpdateThemeModeUseCase)
     factoryOf(::DeleteIgnoredKeywordUseCase)
+    factoryOf(::UpdateEnabledInstitutionsUseCase)
 
     // ViewModel용 번들
     factoryOf(::IngestionUseCases)

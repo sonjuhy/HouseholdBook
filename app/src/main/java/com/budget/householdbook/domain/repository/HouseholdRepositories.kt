@@ -10,7 +10,7 @@ import com.budget.householdbook.data.local.entity.MerchantCategoryRuleEntity
 import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.data.sync.GoogleLoginResult
-import com.budget.householdbook.domain.model.KbQuickCredentials
+import com.budget.householdbook.domain.model.QuickInquiryCredentials
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.MealPriceConfig
 import com.budget.householdbook.domain.model.QueueStatus
@@ -111,6 +111,7 @@ interface SettingsRepository {
     suspend fun clearGoogleLogin()
     suspend fun updateMealPriceConfig(config: MealPriceConfig)
     suspend fun setKbAutoInquiry(enabled: Boolean, intervalHours: Int)
+    suspend fun setEnabledInstitutions(ids: Set<String>)
     suspend fun markSeedCompleted()
 }
 
@@ -150,8 +151,8 @@ interface SharedSyncRepository {
 
 /** [Beta] KB국민은행 무로그인 빠른조회 (암호화 자격증명 + 스크래퍼) */
 interface KbQuickInquiryRepository {
-    val credentialsFlow: StateFlow<KbQuickCredentials>
-    fun saveCredentials(credentials: KbQuickCredentials)
+    val credentialsFlow: StateFlow<QuickInquiryCredentials>
+    fun saveCredentials(credentials: QuickInquiryCredentials)
     suspend fun fetchRecentTransactions(userRealName: String): Result<List<ParsedNotificationDraft>>
 }
 

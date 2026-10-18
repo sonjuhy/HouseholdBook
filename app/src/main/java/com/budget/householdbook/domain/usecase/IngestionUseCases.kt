@@ -5,7 +5,7 @@ import com.budget.householdbook.data.ingestion.parser.FinancialParserEngine
 import com.budget.householdbook.data.ingestion.parser.ParsedNotificationDraft
 import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.domain.model.IngestionSource
-import com.budget.householdbook.domain.model.KbQuickCredentials
+import com.budget.householdbook.domain.model.QuickInquiryCredentials
 import com.budget.householdbook.domain.model.QueueKind
 import com.budget.householdbook.domain.model.QueueStatus
 import com.budget.householdbook.domain.model.TransactionType
@@ -135,11 +135,16 @@ class IngestRawNotificationUseCase(
     private val settingsRepository: SettingsRepository,
     private val enqueueParsedDraft: EnqueueParsedDraftUseCase
 ) {
+    /**
+     * @param sourcePackage 알림을 보낸 앱 패키지 (문자는 null → 본문으로 금융기관 판별)
+     * @return 대기 큐에 새로 들어갔으면 true (꺼둔 금융기관·광고·중복이면 false)
+     */
     suspend operator fun invoke(
         sourceType: IngestionSource,
         sourceAppName: String,
         title: String,
-        body: String
+        body: String,
+        sourcePackage: String? = null
     ): Boolean {
         val settings = settingsRepository.userSettingsFlow.first()
         val draft = FinancialParserEngine.parse(
@@ -147,8 +152,12 @@ class IngestRawNotificationUseCase(
             sourceAppName = sourceAppName,
             title = title,
             body = body,
-            userRealName = settings.userRealName
+            userRealName = settings.userRealName,
+            sourcePackage = sourcePackage
         ) ?: return false
+
+        // 설정에서 끈 금융기관의 알림·문자는 건너뜀
+        if (draft.institutionId !in settings.enabledInstitutionIds) return false
 
         return enqueueParsedDraft(draft) != null
     }
@@ -178,9 +187,16 @@ class SaveKbCredentialsUseCase(
     private val kbRepository: KbQuickInquiryRepository,
     private val settingsRepository: SettingsRepository
 ) {
-    suspend operator fun invoke(accountNo: String, birthOrBiz: String, pw4: String, userRealName: String) {
+    suspend operator fun invoke(
+        institutionId: String,
+        accountNo: String,
+        birthOrBiz: String,
+        pw4: String,
+        userRealName: String
+    ) {
         kbRepository.saveCredentials(
-            KbQuickCredentials(
+            QuickInquiryCredentials(
+                institutionId = institutionId,
                 accountNumber = accountNo,
                 birthOrBizNumber = birthOrBiz,
                 quickPassword4Digit = pw4

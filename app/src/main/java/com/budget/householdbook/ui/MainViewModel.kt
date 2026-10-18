@@ -17,7 +17,8 @@ import com.budget.householdbook.domain.model.CategorySpendSummary
 import com.budget.householdbook.domain.model.FALLBACK_SHARED_SPACE
 import com.budget.householdbook.domain.model.HouseholdOverview
 import com.budget.householdbook.domain.model.IngestionSource
-import com.budget.householdbook.domain.model.KbQuickCredentials
+import com.budget.householdbook.domain.model.FinancialInstitutions
+import com.budget.householdbook.domain.model.QuickInquiryCredentials
 import com.budget.householdbook.domain.model.MealPriceConfig
 import com.budget.householdbook.domain.model.MealType
 import com.budget.householdbook.domain.model.SplitApprovalItem
@@ -57,7 +58,7 @@ data class HouseholdUiState(
     val transactions: List<TransactionEntity> = emptyList(),
     val mealLogs: List<MealSavingLogEntity> = emptyList(),
     val ignoredKeywords: List<IgnoredKeywordEntity> = emptyList(),
-    val kbCredentials: KbQuickCredentials = KbQuickCredentials(),
+    val kbCredentials: QuickInquiryCredentials = QuickInquiryCredentials(),
     val syncStatusMessage: String = "",
     val totalSpentAmount: Long = 0L,
     val totalIncomeAmount: Long = 0L,
@@ -314,15 +315,16 @@ class MainViewModel(
 
     fun runKbQuickInquiryBeta() {
         viewModelScope.launch {
+            val bankName = FinancialInstitutions.byId(uiState.value.kbCredentials.institutionId)?.displayName ?: "은행"
             ingestion.runKbQuickInquiry()
                 .onSuccess { count ->
                     _snackbarMessage.value = if (count > 0) {
-                        "KB국민은행 계좌에서 새로운 내역 ${count}건을 불러왔습니다."
+                        "$bankName 계좌에서 새로운 내역 ${count}건을 불러왔습니다."
                     } else {
-                        "KB국민은행 조회 완료: 새로 추가할 내역이 없습니다."
+                        "$bankName 조회 완료: 새로 추가할 내역이 없습니다."
                     }
                 }.onFailure { err ->
-                    _snackbarMessage.value = err.message ?: "KB 계좌 내역을 불러오는 중 문제가 발생했습니다."
+                    _snackbarMessage.value = err.message ?: "계좌 내역을 불러오는 중 문제가 발생했습니다."
                 }
         }
     }
@@ -482,10 +484,17 @@ class MainViewModel(
         }
     }
 
-    fun saveKbQuickCredentials(accountNo: String, birthOrBiz: String, pw4: String, userRealName: String) {
+    fun saveQuickInquiryCredentials(
+        institutionId: String,
+        accountNo: String,
+        birthOrBiz: String,
+        pw4: String,
+        userRealName: String
+    ) {
         viewModelScope.launch {
-            ingestion.saveKbCredentials(accountNo, birthOrBiz, pw4, userRealName)
-            _snackbarMessage.value = "KB 계좌 빠른조회 정보와 내 이름이 휴대폰에 안전하게 저장되었습니다."
+            ingestion.saveKbCredentials(institutionId, accountNo, birthOrBiz, pw4, userRealName)
+            val bankName = FinancialInstitutions.byId(institutionId)?.displayName ?: "은행"
+            _snackbarMessage.value = "$bankName 빠른조회 정보와 내 이름이 휴대폰에 안전하게 저장되었습니다."
         }
     }
 
@@ -494,14 +503,25 @@ class MainViewModel(
             ingestion.updateKbAutoInquiry(enabled, intervalHours)
                 .onSuccess {
                     _snackbarMessage.value = if (enabled) {
-                        "KB 계좌 내역을 ${intervalHours}시간마다 자동으로 불러옵니다. 새 내역은 대기내역에서 확인하세요."
+                        "계좌 내역을 ${intervalHours}시간마다 자동으로 불러옵니다. 새 내역은 대기내역에서 확인하세요."
                     } else {
-                        "KB 계좌 자동 불러오기를 껐습니다."
+                        "계좌 내역 자동 불러오기를 껐습니다."
                     }
                 }
                 .onFailure { err ->
                     _snackbarMessage.value = err.message ?: "자동 불러오기 설정을 저장하지 못했습니다."
                 }
+        }
+    }
+
+    fun updateEnabledInstitutions(ids: Set<String>) {
+        viewModelScope.launch {
+            settings.updateEnabledInstitutions(ids)
+            _snackbarMessage.value = if (ids.isEmpty()) {
+                "모든 금융사 알림 읽기를 껐습니다."
+            } else {
+                "알림을 읽어올 금융사 ${ids.size}곳을 저장했습니다."
+            }
         }
     }
 

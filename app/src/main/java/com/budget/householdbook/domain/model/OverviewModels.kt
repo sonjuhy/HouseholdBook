@@ -67,7 +67,7 @@ data class HouseholdOverview(
     val transactions: List<TransactionEntity>,
     val mealLogs: List<MealSavingLogEntity>,
     val ignoredKeywords: List<IgnoredKeywordEntity>,
-    val kbCredentials: KbQuickCredentials,
+    val kbCredentials: QuickInquiryCredentials,
     val syncStatusMessage: String,
     val budget: BudgetSummary,
     val totalMealCount: Int,

@@ -185,3 +185,24 @@
 - 단위 테스트 36건 통과 (기존 15건 + UseCase 테스트 21건: `PendingQueueUseCasesTest`, `BudgetMealAndSyncUseCasesTest`, 메모리 저장소 `FakeRepositories.kt`)
 - 에뮬레이터: 변경 전 빌드로 기록한 대시보드 수치(공통 생활비 남은 예산 1,457,500원 / 지출 42,500원 / 하루 권장 112,115원, 개인 용돈 430,200원 / 69,800원 / 61,457원)가 새 빌드에서 동일. 예시 알림 4건 후 일괄 승인(2건 저장, 미매칭 취소 1건 남김), 미매칭 취소를 150,000원 직접 입력 거래에 연결(부분 취소 → 5,000원), 홈 화면 위젯 저녁 +1(40,000원 → 55,000원, 앱에도 반영), 탭 전환·대시보드 `확인하기` 이동 확인
 - 미확인: 실제 Firebase 환경의 로그인·초대·동기화(코드 경로는 그대로 위임만 바꿈)
+
+---
+
+## 10단계: Git 저장소 구성 (2026-10-18)
+
+### 10.1. 저장소 초기화
+- `git init -b main` 후 현재 상태 전체를 첫 커밋 `e39d29e` ("HouseholdBook 초기 커밋 (v0.0.1)", 파일 105개)으로 기록
+- 원격 저장소는 아직 연결하지 않음 (푸시 없음)
+
+### 10.2. 제외 파일 정리 ([`.gitignore`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/.gitignore))
+- 기존 Android Studio 기본 규칙(`build/`, `.gradle/`, `local.properties`, `.idea` 개인 설정 등) 유지
+- 추가 제외:
+  - `.kotlin/` — Kotlin 컴파일러 캐시
+  - `google-services.json` — Firebase 프로젝트 ID·API 키 포함. 파일이 없으면 Google Services 플러그인이 적용되지 않아 **로컬 전용 모드로 빌드**되므로, 저장소를 새로 받은 경우 Firebase 콘솔에서 받은 파일을 `app/`에 직접 넣어야 함
+  - `*.jks`, `*.keystore` — 앱 서명 키
+
+### 10.3. 줄바꿈 통일 ([`.gitattributes`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/.gitattributes))
+- 작업 폴더에 LF·CRLF가 섞여 있던 문제를 정리: 저장소 안의 텍스트 파일은 모두 LF
+- `gradlew`는 LF, `gradlew.bat`은 CRLF로 고정해 macOS·Linux·Windows 어디서든 Gradle 래퍼가 실행되도록 함
+- `*.jar`, `*.png`, `*.webp`, `*.jpg`는 바이너리로 지정
+- 이 저장소에서만 `core.autocrlf = false` 설정 (줄바꿈 변환은 `.gitattributes`가 담당)

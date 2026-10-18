@@ -31,6 +31,7 @@ import com.budget.householdbook.domain.usecase.InitializeAppUseCase
 import com.budget.householdbook.domain.usecase.MealUseCases
 import com.budget.householdbook.domain.usecase.ObserveHouseholdOverviewUseCase
 import com.budget.householdbook.domain.usecase.PendingQueueUseCases
+import com.budget.householdbook.domain.usecase.SampleDataResult
 import com.budget.householdbook.domain.usecase.SettingsUseCases
 import com.budget.householdbook.domain.usecase.TransactionUseCases
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -501,6 +502,15 @@ class MainViewModel(
                 .onFailure { err ->
                     _snackbarMessage.value = err.message ?: "자동 불러오기 설정을 저장하지 못했습니다."
                 }
+        }
+    }
+
+    fun insertSampleData() {
+        viewModelScope.launch {
+            _snackbarMessage.value = when (settings.insertSampleData()) {
+                SampleDataResult.INSERTED -> "예시 거래·집밥 기록·대기 내역을 추가했습니다. 대기내역 탭에서 직접 검수해보세요."
+                SampleDataResult.ALREADY_INSERTED -> "예시 데이터는 이미 추가되어 있습니다."
+            }
         }
     }
 

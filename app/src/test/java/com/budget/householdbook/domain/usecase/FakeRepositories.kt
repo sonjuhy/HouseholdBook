@@ -143,6 +143,7 @@ class FakeTransactionRepository(transactions: List<TransactionEntity> = emptyLis
         }
     }
     override suspend fun getById(transactionId: Long) = state.value.firstOrNull { it.id == transactionId }
+    override suspend fun getByRemoteId(remoteId: String) = state.value.firstOrNull { it.remoteId == remoteId }
     override suspend fun findCancelCandidatesByAmount(amount: Long, sinceMillis: Long) =
         state.value.filter { !it.isCanceled && it.amount == amount && it.transactionDate >= sinceMillis }
     override suspend fun findManualCancelCandidates(refundAmount: Long, sinceMillis: Long) =

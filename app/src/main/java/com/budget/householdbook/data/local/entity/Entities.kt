@@ -84,7 +84,8 @@ data class PendingTransactionEntity(
     tableName = "transactions",
     indices = [
         Index(value = ["spaceId", "transactionDate"]),
-        Index(value = ["originQueueId"])
+        Index(value = ["originQueueId"]),
+        Index(value = ["remoteId"], unique = true)
     ]
 )
 data class TransactionEntity(

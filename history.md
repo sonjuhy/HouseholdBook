@@ -206,3 +206,31 @@
 - `gradlew`는 LF, `gradlew.bat`은 CRLF로 고정해 macOS·Linux·Windows 어디서든 Gradle 래퍼가 실행되도록 함
 - `*.jar`, `*.png`, `*.webp`, `*.jpg`는 바이너리로 지정
 - 이 저장소에서만 `core.autocrlf = false` 설정 (줄바꿈 변환은 `.gitattributes`가 담당)
+
+---
+
+## 11단계: 출시 준비 — DB 마이그레이션 · 예시 데이터 분리 · R8 · 테스트 · CI (2026-10-18)
+
+### 11.1. Room 마이그레이션 체계
+- 사용자 데이터를 지우던 `fallbackToDestructiveMigration(true)`를 제거하고 `core/database/Migrations.kt`의 단계별 마이그레이션으로 교체
+- `exportSchema = true` + `app/schemas/`에 버전별 스키마 JSON 저장 (v1 기준선, v2)
+- **v1 → v2**: `transactions.remoteId` 고유 인덱스 추가 (동기화가 remoteId로 거래를 찾으므로). 이미 중복된 값은 지우지 않고 `-{id}`를 붙여 구분
+- 검증: `MigrationTest` 2건 통과, 에뮬레이터에서 기존 v1 데이터 위에 새 버전을 설치해 24건 그대로 유지·인덱스 생성 확인
+
+### 11.2. 예시 데이터 분리
+- 첫 실행 시드(`SeedInitialDataUseCase`)는 기본 공간·카테고리·가맹점 분류 규칙만 생성
+- 예시 거래·집밥 기록·대기 내역은 설정 > **앱 둘러보기 > 예시 데이터 넣기**(`InsertSampleDataUseCase`)로 원할 때만 추가, 두 번 눌러도 중복되지 않음
+
+### 11.3. 출시 빌드
+- R8 코드 축소·난독화 사용, 출시 APK 약 3.4MB. Worker·위젯·알림 리스너·SMS 리시버가 유지되는 것을 매핑 파일로 확인하고, 출시 빌드로 대시보드·예시 알림·예시 데이터·위젯 +1 동작 확인
+- `keystore.properties`(저장소 제외) 기반 서명 설정, 없으면 디버그 키로 서명(로컬 확인용). 예시: `keystore.properties.example`
+
+### 11.4. 테스트 추가
+- 단위: `SeedAndSampleDataUseCasesTest` 2건 (총 38건 통과)
+- 계측(에뮬레이터): `MigrationTest` 2건, `BillingStartDayFieldTest` 3건, `PendingQueueScreenTest` 3건(일괄 승인, 분할 합계, 미매칭 취소 원본 선택) — 총 9건 통과
+- Firestore 규칙: `firestore-tests/rules.test.mjs` 16건, Firebase 에뮬레이터에서 모두 통과 (익명 차단, 비멤버 차단, 방장 보호, 개인 용돈 업로드 거부, 초대장 권한 등). `firebase.json`에 에뮬레이터 설정 추가. 비멤버도 거래를 읽을 수 있게 규칙을 일부러 느슨하게 바꾸면 해당 테스트가 실패하는 것도 확인 (`RULES_FILE` 환경 변수로 다른 규칙 파일 지정 가능)
+- 실제 계정이 필요한 흐름은 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md)로 정리
+
+### 11.5. CI
+- `.github/workflows/ci.yml`: Android 빌드·단위 테스트·R8 빌드·스키마 커밋 누락 확인, Firestore 규칙 테스트
+- Linux CI에서 실행되도록 `gradlew`에 실행 권한(100755) 부여

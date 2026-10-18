@@ -58,5 +58,6 @@ data class SettingsUseCases(
     val selectSpace: SelectSpaceUseCase,
     val updateSpaceBudget: UpdateSpaceBudgetUseCase,
     val updateThemeMode: UpdateThemeModeUseCase,
-    val deleteIgnoredKeyword: DeleteIgnoredKeywordUseCase
+    val deleteIgnoredKeyword: DeleteIgnoredKeywordUseCase,
+    val insertSampleData: InsertSampleDataUseCase
 )

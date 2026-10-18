@@ -25,7 +25,7 @@
 ### 2.1. 의존성 주입 (DI): `Koin Compose` (안정성 최우선)
 - **선정 이유**: `AGP 9.3.3` + `Gradle 9.5` + `Kotlin 2.2.10` 최신 환경에서 Dagger/Hilt의 ASM 바이트코드 변환 및 KSP 버전 결합 이슈를 원천 배제하고, 순수 Kotlin 기반으로 100% 충돌 없이 동작하는 **Koin (`io.insert-koin:koin-androidx-compose`)**을 표준 DI로 채택합니다.
 - **모듈 구성 (`di/AppModule.kt`)**: 4개 모듈을 `appModules` 리스트로 묶어 `HouseholdBookApp`에서 로드합니다.
-  - `databaseModule`: `AppDatabase`(Room, `fallbackToDestructiveMigration`) 및 각 `DAO` 싱글톤
+  - `databaseModule`: `AppDatabase`(Room, `Migrations.ALL` 적용) 및 각 `DAO` 싱글톤
   - `repositoryModule`: 데이터 소스(`UserPreferencesRepository`, `SecureCredentialManager`, `KbQuickInquiryScraper`, `BackgroundWorkScheduler`, `RemoteSyncManager`)와 `domain/repository` 인터페이스 구현체를 `single` + `bind`로 연결 (예: `singleOf(::RoomPendingQueueRepository) { bind<PendingQueueRepository>() }`, `UserPreferencesRepository` → `SettingsRepository`, `FirebaseSharedSyncRepository` → `SharedSyncRepository`, `AndroidMealWidgetRefresher` → `MealWidgetRefresher`)
   - `useCaseModule`: 상태 없는 `domain/usecase` 클래스와 ViewModel용 번들(`PendingQueueUseCases` 등)을 `factoryOf(::...)`로 등록
   - `viewModelModule`: `viewModelOf(::MainViewModel)` (생성자에 UseCase 번들 주입)
@@ -37,6 +37,9 @@
   - `androidx.room:room-compiler` (`ksp` 플러그인으로 코드 생성)
 - **설계 원칙**:
   - `FREE` 티어와 `PRO` 티어 모두 **모든 UI 화면은 오직 로컬 Room DB의 `Flow`만 구독**합니다 (Single Source of Truth).
+  - **스키마 버전 관리**: 현재 `version = 2`. `exportSchema = true` + KSP 인자 `room.schemaLocation`으로 `app/schemas/`에 버전별 JSON을 남기고, `core/database/Migrations.kt`의 단계별 마이그레이션만 사용합니다 (데이터를 지우는 `fallbackToDestructiveMigration` 사용 안 함).
+    - v1 → v2: `transactions.remoteId` 고유 인덱스 추가 (기존 중복값은 지우지 않고 `-{id}`를 붙여 구분)
+    - 검증: `androidTest/.../MigrationTest.kt` (`room-testing`의 `MigrationTestHelper`, 스키마 JSON을 androidTest 에셋으로 포함)
   - 정산 시작일(`billingStartDay`: 1일~28일 또는 말일 `99`) 변경 시에도 데이터 마이그레이션이 필요 없도록, 거래 일시는 항상 `Long` (UTC Epoch Millis)으로 저장하고 `BETWEEN :startMillis AND :endMillis` 범위 쿼리로 집계합니다.
 
 ### 2.3. 설정 및 보안 저장소: `DataStore` & `Android Keystore`
@@ -240,3 +243,27 @@ flowchart LR
 3. **Data Layer (`data/`)**:
    - `Room` 트랜잭션을 적극 활용하여, 대기 큐에서 **[분할 승인(Split)]** 실행 시 `PendingTransaction 상태 변경(APPROVED)`과 `다중 TransactionEntity 삽입`이 원자적(Atomic)으로 처리되도록 보장합니다. UseCase는 `TransactionRunner.runInTransaction { }`을 호출하고, `RoomTransactionRunner`가 `database.withTransaction`으로 실행합니다.
    - `data/repository/RoomRepositories.kt`의 구현체는 DAO 위임만 하며 비즈니스 규칙을 두지 않습니다.
+
+---
+
+## 5. 출시 빌드 · 테스트 · CI
+
+### 5.1. 출시 빌드 (`app/build.gradle.kts`)
+- `release`에서 R8 코드 축소·난독화 사용 (`optimization { enable = true }`). 프로젝트 규칙은 `app/src/main/keepRules/*.keep`이며, 현재는 각 라이브러리(Room, WorkManager, Firebase, OkHttp, kotlinx-serialization)가 제공하는 규칙만으로 동작합니다. 출시 APK는 약 3.4MB (디버그 약 28MB).
+- 서명: 루트의 `keystore.properties`(저장소 제외, 예시 `keystore.properties.example`)가 있으면 그 키로, 없으면 **로컬 확인용으로 디버그 키**로 서명합니다 (Play 업로드 불가, 빌드 시 경고 출력).
+
+### 5.2. 테스트 구성
+| 종류 | 위치 | 실행 |
+| :--- | :--- | :--- |
+| 단위 테스트 (도메인·UseCase) | `app/src/test/` | `./gradlew testDebugUnitTest` |
+| DB 마이그레이션 | `app/src/androidTest/.../core/database/MigrationTest.kt` | 기기/에뮬레이터: `./gradlew connectedDebugAndroidTest` |
+| Compose UI (대기내역·기준일 입력) | `app/src/androidTest/.../ui/`, `.../core/designsystem/` | 위와 같음 |
+| Firestore 보안 규칙 | `firestore-tests/rules.test.mjs` | `cd firestore-tests && npm install && npm test` (Java 11+, Firebase 에뮬레이터 자동 실행) |
+| 실제 계정이 필요한 흐름 | [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) | 사람이 직접 확인 |
+
+> `connectedDebugAndroidTest`는 테스트 후 앱을 삭제하므로 기기에 남겨둘 데이터가 있으면 APK를 직접 설치하고 `adb shell am instrument -w com.budget.householdbook.test/androidx.test.runner.AndroidJUnitRunner`로 실행합니다.
+
+### 5.3. CI (`.github/workflows/ci.yml`)
+- `android`: JDK 25(Gradle 데몬 툴체인과 동일) → 디버그 빌드·단위 테스트·androidTest APK 빌드 → R8 출시 빌드 → `app/schemas/` 변경 누락 확인
+- `firestore-rules`: Node 22 + JDK 21 → Firebase 에뮬레이터에서 보안 규칙 테스트
+- 계측(UI·마이그레이션) 테스트는 에뮬레이터가 필요해 CI에서는 빌드만 확인합니다.

@@ -2,6 +2,7 @@ package com.budget.householdbook.di
 
 import androidx.room.Room
 import com.budget.householdbook.core.database.AppDatabase
+import com.budget.householdbook.core.database.Migrations
 import com.budget.householdbook.core.datastore.UserPreferencesRepository
 import com.budget.householdbook.core.security.SecureCredentialManager
 import com.budget.householdbook.data.ingestion.kbquick.KbQuickInquiryRepositoryImpl
@@ -60,6 +61,7 @@ import com.budget.householdbook.domain.usecase.RecordHomeCookedMealUseCase
 import com.budget.householdbook.domain.usecase.RunKbQuickInquiryUseCase
 import com.budget.householdbook.domain.usecase.SaveKbCredentialsUseCase
 import com.budget.householdbook.domain.usecase.SeedInitialDataUseCase
+import com.budget.householdbook.domain.usecase.InsertSampleDataUseCase
 import com.budget.householdbook.domain.usecase.SelectSpaceUseCase
 import com.budget.householdbook.domain.usecase.SettingsUseCases
 import com.budget.householdbook.domain.usecase.SignInWithGoogleUseCase
@@ -92,7 +94,10 @@ val databaseModule = module {
             androidContext(),
             AppDatabase::class.java,
             "household_book_v001.db"
-        ).fallbackToDestructiveMigration(true).build()
+        )
+            // 스키마가 바뀌면 Migrations에 단계별 마이그레이션을 추가 (사용자 데이터를 지우는 방식은 쓰지 않음)
+            .addMigrations(*Migrations.ALL)
+            .build()
     }
 
     single { get<AppDatabase>().ledgerSpaceDao() }
@@ -127,6 +132,7 @@ val repositoryModule = module {
 val useCaseModule = module {
     // 앱 시작 · 동기화
     factoryOf(::SeedInitialDataUseCase)
+    factoryOf(::InsertSampleDataUseCase)
     factoryOf(::EnsureBackgroundWorkUseCase)
     factoryOf(::SyncOnAppStartUseCase)
     factoryOf(::InitializeAppUseCase)

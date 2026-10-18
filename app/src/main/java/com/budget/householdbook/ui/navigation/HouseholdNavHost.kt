@@ -121,7 +121,8 @@ fun HouseholdNavHost(
                 onSaveKbCredentials = { acc, birth, pw, realName ->
                     viewModel.saveKbQuickCredentials(acc, birth, pw, realName)
                 },
-                onRemoveIgnoredKeyword = { viewModel.removeIgnoredKeyword(it) }
+                onRemoveIgnoredKeyword = { viewModel.removeIgnoredKeyword(it) },
+                onInsertSampleData = { viewModel.insertSampleData() }
             )
         }
     }

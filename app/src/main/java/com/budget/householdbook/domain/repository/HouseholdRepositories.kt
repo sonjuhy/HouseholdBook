@@ -68,6 +68,7 @@ interface PendingQueueRepository {
 interface TransactionRepository {
     fun observeTransactionsInPeriod(spaceId: String, startMillis: Long, endExclusiveMillis: Long): Flow<List<TransactionEntity>>
     suspend fun getById(transactionId: Long): TransactionEntity?
+    suspend fun getByRemoteId(remoteId: String): TransactionEntity?
     /** 자동 취소 매칭 후보: 같은 금액의 최근 미취소 거래 */
     suspend fun findCancelCandidatesByAmount(amount: Long, sinceMillis: Long): List<TransactionEntity>
     /** 취소 원본 직접 선택 후보: 환불 금액 이상인 최근 미취소 지출 (같은 금액 우선) */

@@ -25,18 +25,15 @@ import kotlinx.coroutines.flow.first
 import java.util.UUID
 
 /**
- * 앱 최초 실행 시 기본 공간(공통 생활비, 내 용돈), 상위/세부 카테고리,
- * 그리고 즉시 검수해볼 수 있는 샘플 거래·집밥 기록·대기 큐 항목을 시드합니다. (1회만 실행)
+ * 앱 최초 실행 시 기본 공간(공통 생활비, 내 용돈), 상위/세부 카테고리, 기본 가맹점 분류 규칙만 만듭니다. (1회만 실행)
+ * - 예시 거래·집밥 기록·대기 내역은 넣지 않습니다. 체험용 데이터는 설정의 [InsertSampleDataUseCase]로 직접 추가합니다.
  */
 class SeedInitialDataUseCase(
     private val transactionRunner: TransactionRunner,
     private val settingsRepository: SettingsRepository,
     private val spaceRepository: LedgerSpaceRepository,
     private val categoryRepository: CategoryRepository,
-    private val ruleRepository: AutomationRuleRepository,
-    private val transactionRepository: TransactionRepository,
-    private val mealRepository: MealRepository,
-    private val pendingQueueRepository: PendingQueueRepository
+    private val ruleRepository: AutomationRuleRepository
 ) {
     suspend operator fun invoke() {
         val settings = settingsRepository.userSettingsFlow.first()
@@ -75,7 +72,7 @@ class SeedInitialDataUseCase(
             val foodParentId = categoryRepository.insertCategory(
                 CategoryEntity(spaceId = sharedId, name = "식비", emoji = "🍔", colorHex = "#EF4444", sortOrder = 1)
             )
-            val grocSubId = categoryRepository.insertCategory(
+            categoryRepository.insertCategory(
                 CategoryEntity(spaceId = sharedId, parentId = foodParentId, name = "식재료/장보기", emoji = "🥬", colorHex = "#EF4444", sortOrder = 1)
             )
             val delivSubId = categoryRepository.insertCategory(
@@ -88,7 +85,7 @@ class SeedInitialDataUseCase(
             val livingParentId = categoryRepository.insertCategory(
                 CategoryEntity(spaceId = sharedId, name = "주거/생활", emoji = "🏠", colorHex = "#2563EB", sortOrder = 2)
             )
-            val lifeSubId = categoryRepository.insertCategory(
+            categoryRepository.insertCategory(
                 CategoryEntity(spaceId = sharedId, parentId = livingParentId, name = "생필품/마트", emoji = "🧻", colorHex = "#2563EB", sortOrder = 1)
             )
             categoryRepository.insertCategory(
@@ -131,14 +128,14 @@ class SeedInitialDataUseCase(
             val hobbyParentId = categoryRepository.insertCategory(
                 CategoryEntity(spaceId = personalId, name = "취미/쇼핑", emoji = "🎮", colorHex = "#8B5CF6", sortOrder = 2)
             )
-            val shoppingSubId = categoryRepository.insertCategory(
+            categoryRepository.insertCategory(
                 CategoryEntity(spaceId = personalId, parentId = hobbyParentId, name = "의류/패션", emoji = "👕", colorHex = "#8B5CF6", sortOrder = 1)
             )
             categoryRepository.insertCategory(
                 CategoryEntity(spaceId = personalId, parentId = hobbyParentId, name = "문화/구독", emoji = "🎬", colorHex = "#8B5CF6", sortOrder = 2)
             )
 
-            val personalIncomeId = categoryRepository.insertCategory(
+            categoryRepository.insertCategory(
                 CategoryEntity(
                     spaceId = personalId,
                     transactionType = TransactionType.INCOME,
@@ -167,12 +164,61 @@ class SeedInitialDataUseCase(
                 )
             )
 
+        }
+
+        settingsRepository.markSeedCompleted()
+    }
+}
+
+/** 예시 데이터 넣기 결과 */
+enum class SampleDataResult { INSERTED, ALREADY_INSERTED }
+
+/**
+ * 설정 > '예시 데이터 넣기': 앱을 바로 체험해볼 수 있는 예시 거래·집밥 기록·대기 내역을 추가합니다.
+ * - 첫 실행 때 자동으로 넣지 않고, 사용자가 원할 때만 추가 (실사용 장부에 가짜 내역이 섞이지 않도록)
+ * - 이미 넣었으면 다시 넣지 않음 (예시 거래의 고정 remoteId로 판별)
+ */
+class InsertSampleDataUseCase(
+    private val transactionRunner: TransactionRunner,
+    private val categoryRepository: CategoryRepository,
+    private val transactionRepository: TransactionRepository,
+    private val mealRepository: MealRepository,
+    private val pendingQueueRepository: PendingQueueRepository
+) {
+    suspend operator fun invoke(): SampleDataResult {
+        if (transactionRepository.getByRemoteId(SAMPLE_COUPANG_REMOTE_ID) != null) {
+            return SampleDataResult.ALREADY_INSERTED
+        }
+
+        val sharedId = AppDatabase.SPACE_ID_SHARED
+        val personalId = AppDatabase.SPACE_ID_PERSONAL
+        val sharedCats = categoryRepository.getCategoriesBySpaceOnce(sharedId)
+        val personalCats = categoryRepository.getCategoriesBySpaceOnce(personalId)
+
+        fun List<CategoryEntity>.parent(name: String, type: TransactionType = TransactionType.EXPENSE): Long =
+            (firstOrNull { it.parentId == null && it.name == name }
+                ?: firstOrNull { it.parentId == null && it.transactionType == type }
+                ?: first { it.parentId == null }).id
+
+        fun List<CategoryEntity>.sub(parentId: Long, name: String): Long? =
+            (firstOrNull { it.parentId == parentId && it.name == name }
+                ?: firstOrNull { it.parentId == parentId })?.id
+
+        val foodParentId = sharedCats.parent("식비")
+        val grocSubId = sharedCats.sub(foodParentId, "식재료/장보기")
+        val livingParentId = sharedCats.parent("주거/생활")
+        val lifeSubId = sharedCats.sub(livingParentId, "생필품/마트")
+        val hobbyParentId = personalCats.parent("취미/쇼핑")
+        val shoppingSubId = personalCats.sub(hobbyParentId, "의류/패션")
+        val personalIncomeId = personalCats.parent("급여/용돈수입", TransactionType.INCOME)
+
+        transactionRunner.runInTransaction {
             val now = System.currentTimeMillis()
 
             // 초기 확정 거래 내역 시드 (예산 프로그레스 및 결제 취소 매칭 체험용)
             val coupangTxId = transactionRepository.insertTransaction(
                 TransactionEntity(
-                    remoteId = UUID.randomUUID().toString(),
+                    remoteId = SAMPLE_COUPANG_REMOTE_ID,
                     spaceId = sharedId,
                     type = TransactionType.EXPENSE,
                     amount = 18_900L,
@@ -307,8 +353,11 @@ class SeedInitialDataUseCase(
                 )
             )
         }
+        return SampleDataResult.INSERTED
+    }
 
-        settingsRepository.markSeedCompleted()
+    private companion object {
+        const val SAMPLE_COUPANG_REMOTE_ID = "sample-coupang-18900"
     }
 }
 

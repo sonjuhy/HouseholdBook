@@ -153,7 +153,7 @@ com.budget.householdbook
 │       ├── MealUseCases.kt              # 집밥 +1, 삭제, 단가 변경, 위젯 요약
 │       ├── SharedSyncUseCases.kt        # [Pro] 동기화, 로그인·초대·로그아웃, 공유 멤버, 플랜 변경
 │       ├── SettingsUseCases.kt          # 공간 전환, 화면 스타일, 무시 키워드 삭제
-│       ├── AppStartupUseCases.kt        # 초기 시드(SeedInitialDataUseCase), 앱 시작 초기화(InitializeAppUseCase)
+│       ├── AppStartupUseCases.kt        # 기본 시드(SeedInitialDataUseCase), 예시 데이터 넣기(InsertSampleDataUseCase), 앱 시작 초기화
 │       ├── ObserveHouseholdOverviewUseCase.kt # 현재 공간·정산 주기 기준 화면 데이터 구독
 │       └── UseCaseBundles.kt            # ViewModel 주입용 기능별 묶음 (PendingQueueUseCases 등)
 └── ui/
@@ -279,7 +279,10 @@ com.budget.householdbook
 4. **공유 범위 원칙**:
    - Firebase 공유 장부(`shared_spaces/{inviteCode}/transactions`)에는 **`공통 생활비`(`SPACE_ID_SHARED`) 내역만** 올라가야 합니다. `개인 용돈` 내역은 어떤 경우에도 업로드하지 않습니다.
    - 초대번호는 고정 기본값을 쓰지 않고 `RemoteSyncManager.generateInviteCode()`로 발급합니다.
-5. **대기 큐 불변 원칙**:
+5. **DB 스키마 변경 원칙**:
+   - 엔티티(테이블·컬럼·인덱스)를 바꾸면 `AppDatabase.version`을 올리고 `core/database/Migrations.kt`에 `MIGRATION_n_(n+1)`을 추가합니다. 사용자 데이터를 지우는 `fallbackToDestructiveMigration`은 쓰지 않습니다.
+   - 빌드 시 생성되는 `app/schemas/` JSON을 함께 커밋하고, `androidTest/.../MigrationTest.kt`에 이전 버전 데이터 보존 검증을 추가합니다.
+6. **대기 큐 불변 원칙**:
    - 푸시 알림, SMS, `[Beta]` KB 무로그인 빠른조회 등 모든 자동 수집 데이터는 **반드시 `PendingTransactionDao`로만 들어가야 하며**, 사용자의 승인 액션 없이 `TransactionDao`에 직접 저장해서는 안 됩니다.
    - 코드상 진입점은 `EnqueueParsedDraftUseCase`(→ `PendingQueueRepository`) 하나이며, 확정 거래는 승인 UseCase(`ApprovePendingItemUseCase` 등)와 직접 입력(`AddManualTransactionUseCase`)에서만 만들어집니다.
 6. **계층 규칙**:
@@ -317,7 +320,7 @@ com.budget.householdbook
 
 | 로드맵 | 상태 | 비고 |
 | :--- | :--- | :--- |
-| Phase 1: 기반 설정 및 로컬 DB | ✅ 완료 | Room v1 (`fallbackToDestructiveMigration`), 시드 데이터 포함 |
+| Phase 1: 기반 설정 및 로컬 DB | ✅ 완료 | Room v2 + 단계별 마이그레이션(`Migrations.kt`, 스키마 JSON 관리). 첫 실행은 공간·카테고리만 만들고 예시 데이터는 설정 > `예시 데이터 넣기` |
 | Phase 2: 공간·예산·카테고리 UI | ✅ 완료 | 기준일 `1~28일` + `매월 말일` |
 | Phase 3: 대기 큐 (분할/취소/이체) | ✅ 완료 | 미매칭 취소 건은 원본 결제 직접 선택(전체/부분 취소) |
 | Phase 4: 자동 수집 엔진 | ✅ 완료 | 알림·SMS·KB 빠른조회(Beta)·예시 알림·KB 주기 자동 조회(`QuickInquiryWorker`, 3/6/12/24시간) |

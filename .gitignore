@@ -20,6 +20,11 @@ local.properties
 # Firebase 프로젝트 설정 (프로젝트 ID·API 키 포함) — 없으면 로컬 전용 모드로 빌드됨
 google-services.json
 
-# 서명 키
+# 서명 키와 비밀번호
 *.jks
 *.keystore
+keystore.properties
+
+# Firestore 규칙 테스트 의존성
+node_modules/
+firestore-debug.log

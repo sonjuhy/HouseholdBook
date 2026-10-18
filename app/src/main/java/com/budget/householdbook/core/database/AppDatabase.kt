@@ -79,8 +79,8 @@ class HouseholdTypeConverters {
         IgnoredKeywordEntity::class,
         MerchantCategoryRuleEntity::class
     ],
-    version = 1,
-    exportSchema = false
+    version = 2,
+    exportSchema = true
 )
 @TypeConverters(HouseholdTypeConverters::class)
 abstract class AppDatabase : RoomDatabase() {

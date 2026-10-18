@@ -72,6 +72,7 @@ class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRe
         endExclusiveMillis: Long
     ): Flow<List<TransactionEntity>> = dao.observeTransactionsInPeriod(spaceId, startMillis, endExclusiveMillis)
     override suspend fun getById(transactionId: Long): TransactionEntity? = dao.getById(transactionId)
+    override suspend fun getByRemoteId(remoteId: String): TransactionEntity? = dao.getByRemoteId(remoteId)
     override suspend fun findCancelCandidatesByAmount(amount: Long, sinceMillis: Long): List<TransactionEntity> =
         dao.findCancelCandidatesByAmount(amount, sinceMillis)
     override suspend fun findManualCancelCandidates(refundAmount: Long, sinceMillis: Long): List<TransactionEntity> =

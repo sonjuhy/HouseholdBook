@@ -100,7 +100,8 @@ fun SettingsAndCategoryScreen(
     onInviteByGoogleEmail: (partnerEmail: String, partnerName: String, inviteCode: String) -> Unit,
     onSaveKbCredentials: (String, String, String, String) -> Unit,
     onUpdateKbAutoInquiry: (enabled: Boolean, intervalHours: Int) -> Unit,
-    onRemoveIgnoredKeyword: (Long) -> Unit
+    onRemoveIgnoredKeyword: (Long) -> Unit,
+    onInsertSampleData: () -> Unit
 ) {
     val context = LocalContext.current
     // 초대번호·멤버는 현재 선택된 공간과 무관하게 항상 '공통 생활비' 공간 기준
@@ -649,6 +650,41 @@ fun SettingsAndCategoryScreen(
                         },
                         modifier = Modifier.align(Alignment.End)
                     )
+                }
+            }
+        }
+
+        // 6. 앱 체험용 예시 데이터 (첫 실행 때 자동으로 넣지 않음)
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                IosSectionHeader(title = "앱 둘러보기")
+                IosInsetGroupedCard(contentPadding = PaddingValues(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 10.dp)
+                        ) {
+                            Text(
+                                text = "예시 데이터 넣기",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "예시 거래·집밥 기록·확인 대기 내역을 추가해\n분할 등록·취소 연결 등을 바로 체험해볼 수 있습니다.",
+                                fontSize = 12.sp,
+                                lineHeight = 17.sp,
+                                color = IosSystemGray
+                            )
+                        }
+                        IosTintedButton(
+                            text = "추가하기",
+                            onClick = onInsertSampleData
+                        )
+                    }
                 }
             }
         }

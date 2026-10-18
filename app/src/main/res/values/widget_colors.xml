@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 집밥 절약 홈 화면 위젯 색상 (DESIGN_GUIDE iOS 토큰 기준, 다크 모드는 values-night) -->
+<resources>
+    <color name="widget_background">#FFFFFFFF</color>
+    <color name="widget_text_primary">#FF000000</color>
+    <color name="widget_text_secondary">#FF8E8E93</color>
+    <color name="widget_accent">#FFFF9500</color>
+    <color name="widget_button_background">#1FFF9500</color>
+</resources>

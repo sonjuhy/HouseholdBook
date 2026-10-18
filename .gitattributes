@@ -1,0 +1,12 @@
+# 저장소 안에서는 줄바꿈을 LF로 통일
+* text=auto eol=lf
+
+# 실행 스크립트: gradlew는 LF(유닉스), .bat은 CRLF(윈도우)
+gradlew text eol=lf
+*.bat text eol=crlf
+
+# 바이너리
+*.jar binary
+*.png binary
+*.webp binary
+*.jpg binary

@@ -1,0 +1,126 @@
+rules_version = '2';
+
+// HouseholdBook Firestore 보안 규칙
+// - 모든 클라우드 접근은 Google 계정(이메일 인증 완료)으로 로그인한 사용자만 가능 (익명 로그인 차단)
+// - 공유 장부(shared_spaces/{inviteCode})는 방 문서의 memberEmails에 포함된 멤버만 읽고 쓸 수 있음
+//   → 초대번호를 알아도 초대받지 않은 계정은 접근 불가
+// - 데이터 구조는 app/.../data/sync/RemoteSyncManager.kt 와 함께 변경해야 함
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedInWithGoogle() {
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
+
+    // 앱은 이메일을 항상 소문자로 저장하므로 토큰 이메일도 소문자로 비교
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // RemoteSyncManager.generateInviteCode()와 같은 형식만 허용 (예전 고정값 HB-2026 등은 방 생성 불가)
+    function isValidInviteCode(code) {
+      return code is string && code.matches('^HB-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$');
+    }
+
+    function roomPath(code) {
+      return /databases/$(database)/documents/shared_spaces/$(code);
+    }
+
+    function isRoomMember(code) {
+      return signedInWithGoogle() && myEmail() in get(roomPath(code)).data.memberEmails;
+    }
+
+    // 1. 사용자 프로필 및 플랜 정보: 본인(uid)만 접근
+    match /users/{uid} {
+      allow read, delete: if signedInWithGoogle() && request.auth.uid == uid;
+      allow create, update: if signedInWithGoogle()
+        && request.auth.uid == uid
+        && request.resource.data.uid == uid
+        && request.resource.data.email == myEmail();
+    }
+
+    // 2. 함께 쓰기 초대장: 문서 ID = "{inviteCode}__{초대받는 이메일}"
+    //    초대한 사람(방 멤버)과 초대받은 사람만 볼 수 있음
+    match /invitations/{invitationId} {
+      allow read: if signedInWithGoogle()
+        && (resource.data.inviterUid == request.auth.uid || resource.data.partnerEmail == myEmail());
+
+      // 방 멤버만, 이미 memberEmails에 추가된 상대에게만 초대장을 만들 수 있음
+      allow create: if signedInWithGoogle()
+        && invitationId == request.resource.data.inviteCode + '__' + request.resource.data.partnerEmail
+        && request.resource.data.inviterUid == request.auth.uid
+        && request.resource.data.inviterEmail == myEmail()
+        && request.resource.data.status == 'PENDING'
+        && isRoomMember(request.resource.data.inviteCode)
+        && request.resource.data.partnerEmail in get(roomPath(request.resource.data.inviteCode)).data.memberEmails;
+
+      allow update: if signedInWithGoogle() && (
+        // 방 멤버: 같은 상대에게 다시 보내기 또는 취소 (방·상대 변경 불가)
+        (isRoomMember(resource.data.inviteCode)
+          && request.resource.data.inviterUid == request.auth.uid
+          && request.resource.data.inviterEmail == myEmail()
+          && request.resource.data.inviteCode == resource.data.inviteCode
+          && request.resource.data.partnerEmail == resource.data.partnerEmail
+          && request.resource.data.status in ['PENDING', 'CANCELED'])
+        ||
+        // 초대받은 사람: 수락/거절 상태만 변경
+        (resource.data.partnerEmail == myEmail()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'acceptedAt', 'partnerUid', 'partnerName'])
+          && request.resource.data.status in ['ACCEPTED', 'DECLINED']
+          && request.resource.data.partnerUid == request.auth.uid)
+      );
+
+      allow delete: if signedInWithGoogle()
+        && (resource.data.inviterUid == request.auth.uid || resource.data.partnerEmail == myEmail());
+    }
+
+    // 3. 함께 쓰는 장부 방 (방 문서 = 멤버 명단)
+    match /shared_spaces/{inviteCode} {
+      function isValidRoom(data) {
+        return data.inviteCode == inviteCode
+          && data.ownerUid is string
+          && data.ownerEmail is string
+          && data.memberEmails is list
+          && data.memberEmails.size() >= 1
+          && data.memberEmails.size() <= 10;
+      }
+
+      // 없는 방은 "없음"만 확인 가능 (새 방 생성 전 확인용), 있는 방은 멤버만 조회
+      allow get: if signedInWithGoogle()
+        && (resource == null || myEmail() in resource.data.memberEmails);
+      allow list: if false;
+
+      // 방을 만든 사람이 방장이며, 처음에는 본인만 멤버
+      allow create: if signedInWithGoogle()
+        && isValidInviteCode(inviteCode)
+        && isValidRoom(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerEmail == myEmail()
+        && request.resource.data.memberEmails == [myEmail()];
+
+      // 기존 멤버만 멤버 추가(초대)·이름 변경 가능. 방장 정보는 바꿀 수 없고 방장은 내보낼 수 없음
+      allow update: if signedInWithGoogle()
+        && myEmail() in resource.data.memberEmails
+        && isValidRoom(request.resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.ownerEmail == resource.data.ownerEmail
+        && resource.data.ownerEmail in request.resource.data.memberEmails;
+
+      allow delete: if signedInWithGoogle() && resource.data.ownerUid == request.auth.uid;
+
+      // 공통 생활비 거래 내역: 방 멤버만 읽고 쓰기
+      match /transactions/{remoteId} {
+        allow read, delete: if isRoomMember(inviteCode);
+        allow create, update: if isRoomMember(inviteCode)
+          && request.resource.data.remoteId == remoteId
+          && request.resource.data.spaceId == 'space_shared_default'
+          && request.resource.data.amount is int
+          && request.resource.data.updatedAt is int;
+      }
+    }
+  }
+}

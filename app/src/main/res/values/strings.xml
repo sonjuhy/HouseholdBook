@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">HouseholdBook</string>
+
+    <!-- 집밥 절약 홈 화면 위젯 -->
+    <string name="widget_meal_label">집밥 절약</string>
+    <string name="widget_meal_description">직접 해먹은 끼니를 홈 화면에서 바로 +1 기록하고 이번 달 절약 금액을 확인합니다.</string>
+    <string name="widget_meal_title">🍚 집밥 절약</string>
+    <string name="widget_meal_loading">불러오는 중…</string>
+    <string name="widget_meal_breakfast">🌅 아침</string>
+    <string name="widget_meal_lunch">☀️ 점심</string>
+    <string name="widget_meal_dinner">🌙 저녁</string>
+    <string name="widget_meal_snack">☕ 간식</string>
+</resources>

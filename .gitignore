@@ -1,0 +1,25 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Kotlin 컴파일러 캐시
+.kotlin/
+
+# Firebase 프로젝트 설정 (프로젝트 ID·API 키 포함) — 없으면 로컬 전용 모드로 빌드됨
+google-services.json
+
+# 서명 키
+*.jks
+*.keystore

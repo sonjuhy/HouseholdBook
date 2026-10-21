@@ -98,6 +98,7 @@
    - 런타임에는 `RemoteSyncManager.isFirebaseConfigured()`로 Firebase 초기화 여부를 확인하고, 설정이 없으면 로컬 전용으로 동작합니다. (별도 `RemoteSyncDataSource` 인터페이스 분리는 예정)
 4. **보안 규칙 (`firestore.rules`)**:
    - 모든 규칙은 `sign_in_provider == 'google.com'` + `email_verified` 인 구글 로그인 사용자만 허용합니다 (익명 로그인 차단).
+   - **구글 로그인 방식**: Credential Manager(`androidx.credentials` + `googleid`)의 `GetSignInWithGoogleOption`으로 Google ID 토큰을 받고 `GoogleAuthProvider.getCredential()` → `FirebaseAuth.signInWithCredential()`로 로그인합니다. 웹 클라이언트 ID는 google-services 플러그인이 만드는 `default_web_client_id` 리소스를 실행 중에 찾아 쓰며, 없으면(=Firebase에 SHA-1 미등록 상태로 받은 `google-services.json`) 설정 안내 문구를 보여줍니다. R8용 keep 규칙은 `keepRules/rules.keep`에 있습니다.
    - `users/{uid}`: 본인만 읽기·쓰기. `uid`/`email` 필드는 토큰 값과 같아야 합니다.
    - `shared_spaces/{inviteCode}`: 방 문서는 `memberEmails`에 포함된 멤버만 조회·수정합니다. 새 방은 `HB-XXXX-XXXX` 형식(`isValidInviteCode`)일 때만, 나 혼자 멤버·방장으로 만들 수 있습니다. 방장 정보는 바꿀 수 없고 멤버는 최대 10명입니다. 하위 `transactions`도 멤버만 읽고 쓰며 `remoteId`·`spaceId`·`amount`·`updatedAt`을 검증합니다.
    - `invitations/{inviteCode}__{email}`: 방 멤버만, 이미 `memberEmails`에 추가된 상대에게만 만들 수 있습니다. 초대한 사람·초대받은 사람만 볼 수 있고, 초대받은 사람은 수락/거절 상태만 바꿀 수 있습니다.

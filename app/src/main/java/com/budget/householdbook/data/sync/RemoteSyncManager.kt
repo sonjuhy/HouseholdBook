@@ -2,6 +2,14 @@ package com.budget.householdbook.data.sync
 
 import android.app.Activity
 import android.content.Context
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.data.local.dao.LedgerSpaceDao
 import com.budget.householdbook.data.local.dao.TransactionDao
@@ -14,7 +22,6 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.auth.OAuthProvider
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
@@ -91,6 +98,53 @@ class RemoteSyncManager(
     /**
      * 구글 공식 인증으로 로그인된 Firebase 사용자 (익명·이메일 없는 세션은 제외)
      */
+    /**
+     * Credential Manager의 'Google 계정으로 로그인' 창을 띄워 Google ID 토큰을 받음
+     * - Firebase 콘솔에 앱 서명 SHA-1이 등록되어 있고, 그 뒤 받은 google-services.json에
+     *   웹 클라이언트 ID(default_web_client_id)가 들어 있어야 동작
+     */
+    private suspend fun requestGoogleIdToken(activity: Activity): String {
+        val webClientId = defaultWebClientId()
+            ?: throw IllegalStateException(GOOGLE_SIGN_IN_SETUP_MESSAGE)
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(GetSignInWithGoogleOption.Builder(webClientId).build())
+            .build()
+        val response = try {
+            CredentialManager.create(activity).getCredential(activity, request)
+        } catch (e: GetCredentialCancellationException) {
+            throw IllegalStateException("구글 로그인을 취소했습니다.", e)
+        } catch (e: NoCredentialException) {
+            throw IllegalStateException("이 기기에 로그인된 구글 계정이 없습니다. 기기 설정에서 구글 계정을 추가한 뒤 다시 시도해주세요.", e)
+        } catch (e: GetCredentialException) {
+            throw IllegalStateException(friendlySignInError(e), e)
+        }
+        val credential = response.credential
+        if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            return GoogleIdTokenCredential.createFrom(credential.data).idToken
+        }
+        throw IllegalStateException("구글 계정 정보를 받지 못했습니다. 다시 시도해주세요.")
+    }
+
+    /** google-services 플러그인이 만든 웹 클라이언트 ID (google-services.json에 OAuth 클라이언트가 없으면 null) */
+    private fun defaultWebClientId(): String? {
+        val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+        return if (resId == 0) null else context.getString(resId).takeIf { it.isNotBlank() }
+    }
+
+    /** Firebase·Google 로그인 오류를 사용자가 할 일 위주의 문장으로 */
+    private fun friendlySignInError(error: Throwable): String {
+        val raw = "${error.message} ${error.cause?.message}"
+        return when {
+            listOf("INVALID_CERT_HASH", "28444", "Developer console is not set up", "10:").any { raw.contains(it) } ->
+                GOOGLE_SIGN_IN_SETUP_MESSAGE
+            raw.contains("network", ignoreCase = true) || raw.contains("7:") ->
+                "인터넷 연결을 확인한 뒤 다시 시도해주세요."
+            raw.contains("OPERATION_NOT_ALLOWED") || raw.contains("not enabled", ignoreCase = true) ->
+                "Firebase 콘솔 > Authentication에서 Google 로그인을 사용 설정해주세요."
+            else -> "구글 로그인 중 문제가 발생했습니다. (${error.message ?: error.javaClass.simpleName})"
+        }
+    }
+
     /** 지금 공유 장부에 업로드할 수 있는 상태인지 (Firebase 설정 + 구글 계정 로그인) */
     fun canSyncNow(): Boolean = isFirebaseConfigured() && currentGoogleUser() != null
 
@@ -205,10 +259,15 @@ class RemoteSyncManager(
                 }
                 // 예전 버전의 익명 세션이나 다른 구글 계정 세션은 정리
                 if (auth.currentUser != null) auth.signOut()
-                val provider = OAuthProvider.newBuilder(GoogleAuthProvider.PROVIDER_ID).apply {
-                    if (requestedEmail.isNotBlank()) addCustomParameter("login_hint", requestedEmail)
-                }.build()
-                user = auth.startActivityForSignInWithProvider(activity, provider).await().user
+                // Firebase가 Android에 권장하는 방식: Credential Manager로 Google ID 토큰을 받아 Firebase에 로그인
+                // (이전에는 OAuthProvider("google.com") 웹 창을 띄웠으나 Firebase 문서의 Android용 Google 로그인 방식이 아님)
+                val idToken = requestGoogleIdToken(activity)
+                val credential = GoogleAuthProvider.getCredential(idToken, null)
+                user = try {
+                    auth.signInWithCredential(credential).await().user
+                } catch (e: Exception) {
+                    throw IllegalStateException(friendlySignInError(e), e)
+                }
             }
 
             val email = user?.email?.trim()?.lowercase().orEmpty()
@@ -721,6 +780,11 @@ class RemoteSyncManager(
     }
 
     companion object {
+        /** SHA-1 미등록 등 Firebase 설정 문제로 구글 로그인이 막혔을 때 안내 */
+        const val GOOGLE_SIGN_IN_SETUP_MESSAGE =
+            "구글 로그인 설정이 끝나지 않았습니다. Firebase 콘솔에 이 앱의 SHA-1 인증서 지문을 등록하고, " +
+                "새 google-services.json을 받아 앱에 넣은 뒤 다시 빌드해주세요."
+
         private const val USERS = "users"
         private const val INVITATIONS = "invitations"
         private const val SHARED_SPACES = "shared_spaces"

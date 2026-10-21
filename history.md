@@ -302,3 +302,15 @@
 - 삭제 전 확인 다이얼로그 추가
 - 한계: 대기내역의 `원본 결제 선택`으로 금액을 차감한 **부분 취소**는 원래 금액을 따로 저장하지 않아 이 버튼으로 되돌릴 수 없음 (메모에 차감 내역이 남아 있어 수동 확인 가능)
 - 검증: 단위 69건 통과 (`RestoreCanceledTransactionUseCaseTest` 2건 추가), 에뮬레이터에서 행 버튼·스낵바 되돌리기·삭제 확인 동작 확인
+
+---
+
+## 16단계: 구글 로그인 오류 수정 (2026-10-21)
+- **증상**: 설정 > 구글 계정으로 로그인을 누르면 창이 잠깐 열렸다 바로 닫히며 로그인 실패
+- **원인 1 (설정)**: 로그에 `FirebaseAuth: [GetAuthDomainTask] Error getting project config. Failed with INVALID_CERT_HASH 400` — 앱 서명 인증서(SHA-1)가 Firebase 프로젝트에 등록되어 있지 않음. `app/google-services.json`의 `oauth_client` 목록도 비어 있어 같은 상태임을 확인
+- **원인 2 (코드)**: Firebase 일반 OAuth 웹 창(`OAuthProvider("google.com")` + `startActivityForSignInWithProvider`)으로 구글 로그인을 시도하고 있었음. Firebase 문서의 Android용 구글 로그인 방식이 아님
+- **수정**: Credential Manager로 Google ID 토큰을 받아 `signInWithCredential`로 로그인하도록 교체 (`androidx.credentials:credentials`·`credentials-play-services-auth` 1.5.0, `googleid` 1.1.1 추가, R8 keep 규칙 추가)
+- 설정이 덜 된 경우(웹 클라이언트 ID 없음 / SHA-1 미등록 / Google 로그인 미사용 / 네트워크) 원인별 안내 문구 표시
+- 디버그 키 SHA-1을 구해 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 0번에 Firebase 설정 순서와 함께 정리
+- 검증: 디버그·출시 빌드, 단위 테스트 통과. 에뮬레이터에서 현재 설정 상태로 로그인을 누르면 설정 안내 문구가 뜨는 것까지 확인
+- **미확인**: 실제 구글 계정 로그인 성공 — Firebase 콘솔에 SHA-1을 등록하고 새 `google-services.json`을 넣은 뒤 확인 필요

@@ -6,7 +6,14 @@
 ## 0. 준비
 - [ ] `app/google-services.json`이 있는 상태로 빌드 (없으면 로컬 전용 모드)
 - [ ] `firestore.rules`를 실제 프로젝트에 배포: `firebase deploy --only firestore:rules`
-- [ ] Firebase 콘솔 > Authentication에서 **Google 로그인** 사용 설정
+- [ ] Firebase 콘솔 > Authentication > 로그인 방법에서 **Google** 사용 설정
+- [ ] Firebase 콘솔 > 프로젝트 설정 > 내 앱(`com.budget.householdbook`) > **SHA 인증서 지문 추가**
+  - 디버그 키(이 PC의 `~/.android/debug.keystore`): `SHA-1 <debug-key-sha1>`, `SHA-256 <debug-key-sha256>`
+  - 출시 키를 만들면 그 SHA-1도, Play 스토어로 배포하면 Play Console의 앱 서명 키 SHA-1도 추가
+  - 다른 PC에서 빌드하면 그 PC의 디버그 키 SHA-1을 추가 (`keytool -list -v -keystore ~/.android/debug.keystore -storepass android`)
+- [ ] 지문을 추가한 **뒤** `google-services.json`을 다시 내려받아 `app/`에 덮어쓰기 → 파일 안 `oauth_client`가 비어 있지 않은지 확인 → 다시 빌드
+  - 설정이 덜 되었으면 앱에서 "구글 로그인 설정이 끝나지 않았습니다…" 안내가 뜸
+- [ ] 테스트 기기(에뮬레이터는 Play 스토어 이미지)의 기기 설정에 구글 계정 추가
 - [ ] 기기(또는 에뮬레이터) 2대와 서로 다른 구글 계정 2개 (A: 초대하는 사람, B: 초대받는 사람)
 
 ## 1. 구글 로그인과 플랜

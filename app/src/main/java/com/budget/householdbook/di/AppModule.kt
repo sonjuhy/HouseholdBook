@@ -39,6 +39,7 @@ import com.budget.householdbook.domain.usecase.ApprovePendingItemUseCase
 import com.budget.householdbook.domain.usecase.ApproveSplitPendingItemUseCase
 import com.budget.householdbook.domain.usecase.CalculateBudgetSummaryUseCase
 import com.budget.householdbook.domain.usecase.CancelTransactionUseCase
+import com.budget.householdbook.domain.usecase.RestoreCanceledTransactionUseCase
 import com.budget.householdbook.domain.usecase.CategoryUseCases
 import com.budget.householdbook.domain.usecase.DeleteCategoryUseCase
 import com.budget.householdbook.domain.usecase.DeleteIgnoredKeywordUseCase
@@ -172,6 +173,7 @@ val useCaseModule = module {
     // 거래 · 카테고리 · 예산
     factoryOf(::AddManualTransactionUseCase)
     factoryOf(::CancelTransactionUseCase)
+    factoryOf(::RestoreCanceledTransactionUseCase)
     factoryOf(::DeleteTransactionUseCase)
     factoryOf(::AddCategoryUseCase)
     factoryOf(::UpdateCategoryUseCase)

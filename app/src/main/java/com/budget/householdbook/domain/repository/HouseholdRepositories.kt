@@ -81,6 +81,8 @@ interface TransactionRepository {
     suspend fun insertTransaction(transaction: TransactionEntity): Long
     suspend fun insertTransactions(transactions: List<TransactionEntity>)
     suspend fun markTransactionCanceled(transactionId: Long)
+    /** 취소 처리를 되돌림 (실수로 취소한 경우) */
+    suspend fun restoreTransactionCanceled(transactionId: Long)
     suspend fun applyPartialCancel(transactionId: Long, newAmount: Long, memo: String)
     suspend fun markPendingDelete(transactionId: Long)
     suspend fun deleteById(transactionId: Long)

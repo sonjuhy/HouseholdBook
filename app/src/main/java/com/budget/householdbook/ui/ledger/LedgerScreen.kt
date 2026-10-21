@@ -72,10 +72,12 @@ fun LedgerScreen(
         memo: String
     ) -> Unit,
     onCancelTransaction: (Long) -> Unit,
+    onRestoreCanceledTransaction: (Long) -> Unit,
     onDeleteTransaction: (Long) -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf<TransactionType?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var deletingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
     val filterOptions = listOf<TransactionType?>(
         null,
@@ -222,7 +224,9 @@ fun LedgerScreen(
                                 }
                             },
                             onCancel = { onCancelTransaction(tx.id) },
-                            onDelete = { onDeleteTransaction(tx.id) }
+                            onRestore = { onRestoreCanceledTransaction(tx.id) },
+                            // 삭제는 되돌릴 수 없으므로 한 번 더 확인
+                            onDelete = { deletingTransaction = tx }
                         )
                     }
                 }
@@ -230,6 +234,35 @@ fun LedgerScreen(
         }
 
         item { Spacer(modifier = Modifier.height(104.dp)) }
+    }
+
+    deletingTransaction?.let { tx ->
+        AlertDialog(
+            onDismissRequest = { deletingTransaction = null },
+            title = { Text("거래 내역 삭제") },
+            text = {
+                Text(
+                    text = "'${tx.merchantOrTitle}' ${CurrencyAndDateFormatter.formatWon(tx.amount)} 내역을 삭제할까요?\n삭제하면 되돌릴 수 없습니다. 결제가 취소된 경우라면 삭제 대신 '취소'를 사용하세요.",
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteTransaction(tx.id)
+                        deletingTransaction = null
+                    }
+                ) {
+                    Text("삭제", maxLines = 1, softWrap = false)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingTransaction = null }) {
+                    Text("닫기", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 
     if (showAddDialog) {
@@ -327,6 +360,7 @@ private fun IosTransactionRow(
     tx: TransactionEntity,
     categoryLabel: String,
     onCancel: () -> Unit,
+    onRestore: () -> Unit,
     onDelete: () -> Unit
 ) {
     val amountColor = when {
@@ -398,6 +432,15 @@ private fun IosTransactionRow(
                             tint = IosSystemGray,
                             modifier = Modifier.size(16.dp)
                         )
+                    }
+                } else {
+                    // 실수로 취소한 경우 원래대로
+                    TextButton(
+                        onClick = onRestore,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text("취소 되돌리기", fontSize = 12.sp, maxLines = 1, softWrap = false)
                     }
                 }
                 IconButton(

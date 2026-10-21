@@ -184,6 +184,9 @@ class FakeTransactionRepository(transactions: List<TransactionEntity> = emptyLis
     override suspend fun markTransactionCanceled(transactionId: Long) = update(transactionId) {
         it.copy(isCanceled = true, syncStatus = SyncStatus.PENDING_UPLOAD)
     }
+    override suspend fun restoreTransactionCanceled(transactionId: Long) = update(transactionId) {
+        it.copy(isCanceled = false, syncStatus = SyncStatus.PENDING_UPLOAD)
+    }
     override suspend fun applyPartialCancel(transactionId: Long, newAmount: Long, memo: String) = update(transactionId) {
         it.copy(amount = newAmount, memo = memo, syncStatus = SyncStatus.PENDING_UPLOAD)
     }

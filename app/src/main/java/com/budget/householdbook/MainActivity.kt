@@ -27,7 +27,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,6 +71,7 @@ class MainActivity : ComponentActivity() {
             val viewModel: MainViewModel = koinViewModel()
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
             val snackbarMessage by viewModel.snackbarMessage.collectAsStateWithLifecycle()
+            val undoSnackbar by viewModel.undoSnackbar.collectAsStateWithLifecycle()
             val snackbarHostState = remember { SnackbarHostState() }
 
             val systemDark = isSystemInDarkTheme()
@@ -91,6 +94,19 @@ class MainActivity : ComponentActivity() {
                 val msg = snackbarMessage ?: return@LaunchedEffect
                 snackbarHostState.showSnackbar(msg)
                 viewModel.clearSnackbar()
+            }
+
+            // 취소처럼 되돌릴 수 있는 동작: 스낵바의 '되돌리기'를 누르면 원래대로
+            LaunchedEffect(undoSnackbar) {
+                val undo = undoSnackbar ?: return@LaunchedEffect
+                val result = snackbarHostState.showSnackbar(
+                    message = undo.message,
+                    actionLabel = undo.actionLabel,
+                    duration = SnackbarDuration.Long
+                )
+                if (result == SnackbarResult.ActionPerformed) undo.onUndo()
+                // 표시가 끝난 뒤에 비움 (먼저 비우면 이 효과가 바로 취소되어 스낵바가 사라짐)
+                viewModel.clearUndoSnackbar()
             }
 
             HouseholdBookTheme(

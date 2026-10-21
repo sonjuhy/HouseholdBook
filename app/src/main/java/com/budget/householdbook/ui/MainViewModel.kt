@@ -131,6 +131,14 @@ class MainViewModel(
         _snackbarMessage.value = null
     }
 
+    /** '되돌리기' 버튼이 붙는 스낵바 (취소처럼 실수로 누르기 쉬운 동작 직후) */
+    private val _undoSnackbar = MutableStateFlow<UndoSnackbar?>(null)
+    val undoSnackbar: StateFlow<UndoSnackbar?> = _undoSnackbar.asStateFlow()
+
+    fun clearUndoSnackbar() {
+        _undoSnackbar.value = null
+    }
+
     fun selectSpace(spaceId: String) {
         viewModelScope.launch {
             _monthOffset.value = 0
@@ -396,7 +404,17 @@ class MainViewModel(
     fun cancelTransaction(transactionId: Long) {
         viewModelScope.launch {
             transactions.cancel(transactionId)
-            _snackbarMessage.value = "해당 거래가 취소 처리되어 예산 합계에서 제외되었습니다."
+            _undoSnackbar.value = UndoSnackbar(
+                message = "거래를 취소 처리해 예산 합계에서 뺐습니다.",
+                onUndo = { restoreCanceledTransaction(transactionId) }
+            )
+        }
+    }
+
+    fun restoreCanceledTransaction(transactionId: Long) {
+        viewModelScope.launch {
+            transactions.restoreCancel(transactionId)
+            _snackbarMessage.value = "취소를 되돌렸습니다. 다시 예산 합계에 포함됩니다."
         }
     }
 
@@ -593,3 +611,10 @@ class MainViewModel(
         updateThemeMode(if (currentlyDark) ThemeMode.LIGHT else ThemeMode.DARK)
     }
 }
+
+/** 되돌리기 버튼이 있는 스낵바 내용 */
+data class UndoSnackbar(
+    val message: String,
+    val actionLabel: String = "되돌리기",
+    val onUndo: () -> Unit
+)

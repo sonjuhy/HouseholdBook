@@ -69,6 +69,21 @@ class CancelTransactionUseCase(
 }
 
 /**
+ * 실수로 취소한 거래를 원래대로 되돌림 (예산·지출 합계에 다시 포함, 공유 장부에도 반영)
+ */
+class RestoreCanceledTransactionUseCase(
+    private val transactionRepository: TransactionRepository,
+    private val syncSharedChanges: SyncSharedChangesUseCase
+) {
+    suspend operator fun invoke(transactionId: Long) {
+        val tx = transactionRepository.getById(transactionId) ?: return
+        if (!tx.isCanceled) return
+        transactionRepository.restoreTransactionCanceled(transactionId)
+        syncSharedChanges()
+    }
+}
+
+/**
  * 거래 삭제: 함께 쓰는 공통 생활비 내역은 원격에서도 지워지도록 PENDING_DELETE로 표시 후 동기화하고,
  * 그 외(개인 용돈 / 혼자 쓰기)는 즉시 로컬에서 삭제합니다.
  */

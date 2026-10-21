@@ -79,6 +79,7 @@ fun HouseholdNavHost(
                     viewModel.addManualTransaction(spaceId, type, amt, catId, subId, title, memo)
                 },
                 onCancelTransaction = { viewModel.cancelTransaction(it) },
+                onRestoreCanceledTransaction = { viewModel.restoreCanceledTransaction(it) },
                 onDeleteTransaction = { viewModel.deleteTransaction(it) }
             )
         }

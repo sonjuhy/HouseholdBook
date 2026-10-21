@@ -89,6 +89,7 @@ class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRe
     override suspend fun insertTransaction(transaction: TransactionEntity): Long = dao.insertTransaction(transaction)
     override suspend fun insertTransactions(transactions: List<TransactionEntity>) = dao.insertTransactions(transactions)
     override suspend fun markTransactionCanceled(transactionId: Long) = dao.markTransactionCanceled(transactionId)
+    override suspend fun restoreTransactionCanceled(transactionId: Long) = dao.restoreTransactionCanceled(transactionId)
     override suspend fun applyPartialCancel(transactionId: Long, newAmount: Long, memo: String) =
         dao.applyPartialCancel(transactionId = transactionId, newAmount = newAmount, memo = memo)
     override suspend fun markPendingDelete(transactionId: Long) = dao.markPendingDelete(transactionId)

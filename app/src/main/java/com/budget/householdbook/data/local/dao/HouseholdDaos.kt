@@ -159,6 +159,9 @@ interface TransactionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransactions(transactions: List<TransactionEntity>)
 
+    @Query("UPDATE transactions SET isCanceled = 0, updatedAt = :nowMillis, syncStatus = 'PENDING_UPLOAD' WHERE id = :transactionId")
+    suspend fun restoreTransactionCanceled(transactionId: Long, nowMillis: Long = System.currentTimeMillis())
+
     @Query("UPDATE transactions SET isCanceled = 1, updatedAt = :nowMillis, syncStatus = 'PENDING_UPLOAD' WHERE id = :transactionId")
     suspend fun markTransactionCanceled(transactionId: Long, nowMillis: Long = System.currentTimeMillis())
 

@@ -28,6 +28,7 @@ data class PendingQueueUseCases(
 data class TransactionUseCases(
     val addManual: AddManualTransactionUseCase,
     val cancel: CancelTransactionUseCase,
+    val restoreCancel: RestoreCanceledTransactionUseCase,
     val delete: DeleteTransactionUseCase
 )
 

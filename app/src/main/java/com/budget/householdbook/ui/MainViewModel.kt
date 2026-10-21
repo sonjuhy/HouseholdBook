@@ -48,6 +48,8 @@ import kotlinx.coroutines.launch
  * 앱 전역 UI 상태
  */
 data class HouseholdUiState(
+    /** 저장된 설정·장부를 처음 읽어오기 전에는 false (튜토리얼이 잠깐 깜빡이지 않도록) */
+    val isLoaded: Boolean = false,
     val settings: AppUserSettings = AppUserSettings(),
     val spaces: List<LedgerSpaceEntity> = emptyList(),
     val currentSpace: LedgerSpaceEntity = FALLBACK_SHARED_SPACE,
@@ -73,6 +75,7 @@ data class HouseholdUiState(
 )
 
 private fun HouseholdOverview.toUiState() = HouseholdUiState(
+    isLoaded = true,
     settings = settings,
     spaces = spaces,
     currentSpace = currentSpace,
@@ -630,6 +633,22 @@ class MainViewModel(
                 "알림을 읽어올 금융사 ${ids.size}곳을 저장했습니다."
             }
         }
+    }
+
+    /**
+     * 튜토리얼을 마치거나 건너뜀
+     * @param withSampleData 마지막 화면에서 '예시 데이터로 둘러보기'를 고른 경우
+     */
+    fun completeOnboarding(withSampleData: Boolean) {
+        viewModelScope.launch {
+            settings.updateOnboardingSeen(true)
+            if (withSampleData) insertSampleData()
+        }
+    }
+
+    /** 설정 > 앱 사용법 다시 보기 */
+    fun replayOnboarding() {
+        viewModelScope.launch { settings.updateOnboardingSeen(false) }
     }
 
     fun insertSampleData() {

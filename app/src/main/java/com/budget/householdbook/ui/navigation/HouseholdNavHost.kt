@@ -130,6 +130,7 @@ fun HouseholdNavHost(
                 },
                 onRemoveIgnoredKeyword = { viewModel.removeIgnoredKeyword(it) },
                 onInsertSampleData = { viewModel.insertSampleData() },
+                onReplayOnboarding = { viewModel.replayOnboarding() },
                 onUpdateEnabledInstitutions = { viewModel.updateEnabledInstitutions(it) },
                 onUpdateExcludedSources = { ids, autoFilter -> viewModel.updateExcludedSources(ids, autoFilter) },
                 onUpdateDefaultIngestSpace = { viewModel.updateDefaultIngestSpace(it) },

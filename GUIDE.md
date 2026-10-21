@@ -179,13 +179,14 @@ com.budget.householdbook
 │       ├── BudgetUseCases.kt            # 목표 예산·기준일 변경, 예산 요약 계산(CalculateBudgetSummaryUseCase)
 │       ├── MealUseCases.kt              # 집밥 +1, 삭제, 단가 변경, 위젯 요약
 │       ├── SharedSyncUseCases.kt        # [Pro] 동기화, 로그인·초대·로그아웃, 공유 멤버, 플랜 변경
-│       ├── SettingsUseCases.kt          # 공간 전환, 화면 스타일, 무시 키워드 삭제
+│       ├── SettingsUseCases.kt          # 공간 전환, 화면 스타일, 무시 키워드 삭제, 처음 실행 튜토리얼 확인 여부
 │       ├── AppStartupUseCases.kt        # 기본 시드(SeedInitialDataUseCase), 예시 데이터 넣기(InsertSampleDataUseCase), 앱 시작 초기화
 │       ├── ObserveHouseholdOverviewUseCase.kt # 현재 공간·정산 주기 기준 화면 데이터 구독
 │       └── UseCaseBundles.kt            # ViewModel 주입용 기능별 묶음 (PendingQueueUseCases 등)
 └── ui/
     ├── MainViewModel.kt                 # 앱 전역 단일 ViewModel (HouseholdUiState) — UseCase 호출과 스낵바 문구만 담당
     ├── theme/                           # Color, Theme, Type (iOS 컬러 토큰, 한국어 줄바꿈)
+    ├── onboarding/                      # 처음 실행 튜토리얼 (설정 > 앱 사용법 다시 보기로 다시 열기)
     ├── dashboard/                       # 공간 스위처, 목표 예산 프로그레스, 대기내역 배지, 집밥 요약
     ├── queue/                           # 대기내역 검수 (수정, 분류, 분할 등록, 취소 반영, 일괄 승인)
     ├── ledger/                          # 기간별(기준일 적용) 지출/수입 내역 및 직접 입력
@@ -347,7 +348,7 @@ com.budget.householdbook
 
 | 로드맵 | 상태 | 비고 |
 | :--- | :--- | :--- |
-| Phase 1: 기반 설정 및 로컬 DB | ✅ 완료 | Room v2 + 단계별 마이그레이션(`Migrations.kt`, 스키마 JSON 관리). 첫 실행은 공간·카테고리만 만들고 예시 데이터는 설정 > `예시 데이터 넣기` |
+| Phase 1: 기반 설정 및 로컬 DB | ✅ 완료 | Room v2 + 단계별 마이그레이션(`Migrations.kt`, 스키마 JSON 관리). 첫 실행은 공간·카테고리만 만들고 튜토리얼을 보여줌. 예시 데이터는 튜토리얼 마지막 장 또는 설정 > `예시 데이터 넣기` |
 | Phase 2: 공간·예산·카테고리 UI | ✅ 완료 | 기준일 `1~28일` + `매월 말일` |
 | Phase 3: 대기 큐 (분할/취소/이체) | ✅ 완료 | 미매칭 취소 건은 원본 결제 직접 선택(전체/부분 취소) |
 | Phase 4: 자동 수집 엔진 | ✅ 완료 | 알림·SMS·KB 빠른조회(Beta)·예시 알림·KB 주기 자동 조회(`QuickInquiryWorker`, 3/6/12/24시간) |

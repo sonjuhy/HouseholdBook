@@ -126,6 +126,8 @@ interface SettingsRepository {
     suspend fun setAutoFilterDuplicateAlerts(enabled: Boolean)
     suspend fun setDefaultIngestSpaceId(spaceId: String?)
     suspend fun markSeedCompleted()
+    /** 첫 실행 튜토리얼 확인 여부 (false로 되돌리면 다시 보여줌) */
+    suspend fun setOnboardingSeen(seen: Boolean)
 }
 
 /** [Pro] 구글 로그인·초대·Firestore 공유 장부 동기화 */

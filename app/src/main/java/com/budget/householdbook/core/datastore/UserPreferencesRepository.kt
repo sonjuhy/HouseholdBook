@@ -30,6 +30,8 @@ data class AppUserSettings(
     val userUid: String = "",
     val mealPriceConfig: MealPriceConfig = MealPriceConfig(),
     val isSeedCompleted: Boolean = false,
+    /** 첫 실행 튜토리얼을 끝까지 봤거나 건너뛰었는지 */
+    val hasSeenOnboarding: Boolean = false,
     val kbAutoInquiryEnabled: Boolean = false,
     val kbAutoInquiryIntervalHours: Int = DEFAULT_KB_AUTO_INQUIRY_HOURS,
     /** 알림·문자를 읽어올 금융기관 ID ([FinancialInstitutions]) */
@@ -63,6 +65,7 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
         val DINNER_PRICE = longPreferencesKey("meal_price_dinner")
         val SNACK_PRICE = longPreferencesKey("meal_price_snack")
         val IS_SEED_COMPLETED = booleanPreferencesKey("is_seed_completed")
+        val HAS_SEEN_ONBOARDING = booleanPreferencesKey("has_seen_onboarding")
         val KB_AUTO_INQUIRY_ENABLED = booleanPreferencesKey("kb_auto_inquiry_enabled")
         val KB_AUTO_INQUIRY_HOURS = intPreferencesKey("kb_auto_inquiry_hours")
         val ENABLED_INSTITUTIONS = stringSetPreferencesKey("enabled_institution_ids")
@@ -92,6 +95,7 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
                 snackPrice = prefs[Keys.SNACK_PRICE] ?: MealType.SNACK.defaultUnitPrice
             ),
             isSeedCompleted = prefs[Keys.IS_SEED_COMPLETED] ?: false,
+            hasSeenOnboarding = prefs[Keys.HAS_SEEN_ONBOARDING] ?: false,
             kbAutoInquiryEnabled = prefs[Keys.KB_AUTO_INQUIRY_ENABLED] ?: false,
             kbAutoInquiryIntervalHours = prefs[Keys.KB_AUTO_INQUIRY_HOURS] ?: DEFAULT_KB_AUTO_INQUIRY_HOURS,
             enabledInstitutionIds = prefs[Keys.ENABLED_INSTITUTIONS] ?: FinancialInstitutions.DEFAULT_ENABLED_IDS,
@@ -190,6 +194,10 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
 
     override suspend fun setEnabledInstitutions(ids: Set<String>) {
         context.dataStore.edit { it[Keys.ENABLED_INSTITUTIONS] = ids }
+    }
+
+    override suspend fun setOnboardingSeen(seen: Boolean) {
+        context.dataStore.edit { it[Keys.HAS_SEEN_ONBOARDING] = seen }
     }
 
     override suspend fun markSeedCompleted() {

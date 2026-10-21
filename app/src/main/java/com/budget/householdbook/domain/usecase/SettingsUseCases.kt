@@ -52,3 +52,8 @@ class UpdateAutoFilterDuplicatesUseCase(private val settingsRepository: Settings
 class UpdateDefaultIngestSpaceUseCase(private val settingsRepository: SettingsRepository) {
     suspend operator fun invoke(spaceId: String?) = settingsRepository.setDefaultIngestSpaceId(spaceId)
 }
+
+/** 첫 실행 튜토리얼 완료(또는 건너뛰기) 기록 / 설정에서 다시 보기 */
+class UpdateOnboardingSeenUseCase(private val settingsRepository: SettingsRepository) {
+    suspend operator fun invoke(seen: Boolean) = settingsRepository.setOnboardingSeen(seen)
+}

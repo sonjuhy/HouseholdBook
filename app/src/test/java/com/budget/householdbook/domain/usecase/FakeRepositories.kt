@@ -80,6 +80,9 @@ class FakeSettingsRepository(initial: AppUserSettings = AppUserSettings()) : Set
     override suspend fun setEnabledInstitutions(ids: Set<String>) {
         state.value = state.value.copy(enabledInstitutionIds = ids)
     }
+    override suspend fun setOnboardingSeen(seen: Boolean) {
+        state.value = state.value.copy(hasSeenOnboarding = seen)
+    }
     override suspend fun markSeedCompleted() { state.value = state.value.copy(isSeedCompleted = true) }
 }
 

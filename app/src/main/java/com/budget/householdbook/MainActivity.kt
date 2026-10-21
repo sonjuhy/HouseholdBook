@@ -60,6 +60,7 @@ import com.budget.householdbook.ui.navigation.HouseholdNavHost
 import com.budget.householdbook.ui.navigation.IosFloatingCapsuleTabBar
 import com.budget.householdbook.ui.navigation.TopLevelDestination
 import com.budget.householdbook.ui.navigation.navigateToTopLevel
+import com.budget.householdbook.ui.onboarding.OnboardingScreen
 import com.budget.householdbook.ui.theme.HouseholdBookTheme
 import org.koin.androidx.compose.koinViewModel
 
@@ -113,12 +114,24 @@ class MainActivity : ComponentActivity() {
                 spaceType = uiState.currentSpace.type,
                 darkTheme = isDarkTheme
             ) {
-                HouseholdBookRootScreen(
-                    uiState = uiState,
-                    isDarkTheme = isDarkTheme,
-                    viewModel = viewModel,
-                    snackbarHostState = snackbarHostState
-                )
+                when {
+                    // 저장된 설정을 읽기 전에는 빈 배경만 (다시 실행한 사용자에게 튜토리얼이 깜빡이지 않도록)
+                    !uiState.isLoaded -> Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                    )
+                    // 처음 실행: 튜토리얼
+                    !uiState.settings.hasSeenOnboarding -> OnboardingScreen(
+                        onFinish = { withSampleData -> viewModel.completeOnboarding(withSampleData) }
+                    )
+                    else -> HouseholdBookRootScreen(
+                        uiState = uiState,
+                        isDarkTheme = isDarkTheme,
+                        viewModel = viewModel,
+                        snackbarHostState = snackbarHostState
+                    )
+                }
             }
         }
     }

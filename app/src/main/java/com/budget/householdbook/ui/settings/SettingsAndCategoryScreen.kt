@@ -104,6 +104,7 @@ fun SettingsAndCategoryScreen(
     onUpdateKbAutoInquiry: (enabled: Boolean, intervalHours: Int) -> Unit,
     onRemoveIgnoredKeyword: (Long) -> Unit,
     onInsertSampleData: () -> Unit,
+    onReplayOnboarding: () -> Unit,
     onUpdateEnabledInstitutions: (Set<String>) -> Unit,
     onUpdateExcludedSources: (excludedIds: Set<String>, autoFilterDuplicates: Boolean) -> Unit,
     onUpdateDefaultIngestSpace: (spaceId: String?) -> Unit,
@@ -793,6 +794,35 @@ fun SettingsAndCategoryScreen(
                         IosTintedButton(
                             text = "추가하기",
                             onClick = onInsertSampleData
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    IosHairlineDivider()
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 10.dp)
+                        ) {
+                            Text(
+                                text = "앱 사용법 다시 보기",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "처음 실행할 때 나온 안내 화면을 다시 봅니다.",
+                                fontSize = 12.sp,
+                                color = IosSystemGray
+                            )
+                        }
+                        IosTintedButton(
+                            text = "보기",
+                            onClick = onReplayOnboarding
                         )
                     }
                 }

@@ -69,5 +69,6 @@ data class SettingsUseCases(
     val updateEnabledInstitutions: UpdateEnabledInstitutionsUseCase,
     val updateExcludedSources: UpdateExcludedSourcesUseCase,
     val updateAutoFilterDuplicates: UpdateAutoFilterDuplicatesUseCase,
-    val updateDefaultIngestSpace: UpdateDefaultIngestSpaceUseCase
+    val updateDefaultIngestSpace: UpdateDefaultIngestSpaceUseCase,
+    val updateOnboardingSeen: UpdateOnboardingSeenUseCase
 )

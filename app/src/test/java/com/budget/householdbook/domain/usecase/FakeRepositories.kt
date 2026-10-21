@@ -11,6 +11,7 @@ import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.data.sync.GoogleLoginResult
 import com.budget.householdbook.domain.model.QuickInquiryCredentials
+import com.budget.householdbook.domain.model.SharedRoomInfo
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.MealPriceConfig
 import com.budget.householdbook.domain.model.QueueKind
@@ -269,6 +270,24 @@ class FakeSharedSyncRepository : SharedSyncRepository {
     override suspend fun syncUserProfileTierToCloud(email: String, displayName: String, tier: UserTier, inviteCode: String?, memberNamesCsv: String) = Unit
     override fun isValidInviteCode(code: String?) = code != null && code.matches(Regex("HB-[A-Z2-9]{4}-[A-Z2-9]{4}"))
     override fun generateInviteCode() = "HB-TEST-CODE"
+
+    var roomInfo: SharedRoomInfo? = null
+    val removedEmails = mutableListOf<String>()
+    var left = false
+    override suspend fun loadRoomMembers(): Result<SharedRoomInfo> =
+        roomInfo?.let { Result.success(it) } ?: Result.failure(IllegalStateException("no room"))
+    override suspend fun cancelInvitation(partnerEmail: String): Result<SharedRoomInfo> {
+        removedEmails += partnerEmail
+        return loadRoomMembers()
+    }
+    override suspend fun removeMember(memberEmail: String): Result<SharedRoomInfo> {
+        removedEmails += memberEmail
+        return loadRoomMembers()
+    }
+    override suspend fun leaveRoom(): Result<Unit> {
+        left = true
+        return Result.success(Unit)
+    }
 }
 
 class FakeKbQuickInquiryRepository(

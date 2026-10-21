@@ -11,6 +11,7 @@ import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.data.sync.GoogleLoginResult
 import com.budget.householdbook.domain.model.QuickInquiryCredentials
+import com.budget.householdbook.domain.model.SharedRoomInfo
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.MealPriceConfig
@@ -159,6 +160,12 @@ interface SharedSyncRepository {
     )
     fun isValidInviteCode(code: String?): Boolean
     fun generateInviteCode(): String
+
+    // 멤버 관리
+    suspend fun loadRoomMembers(): Result<SharedRoomInfo>
+    suspend fun cancelInvitation(partnerEmail: String): Result<SharedRoomInfo>
+    suspend fun removeMember(memberEmail: String): Result<SharedRoomInfo>
+    suspend fun leaveRoom(): Result<Unit>
 }
 
 /** [Beta] KB국민은행 무로그인 빠른조회 (암호화 자격증명 + 스크래퍼) */

@@ -8,7 +8,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 const ROOM = 'HB-ABCD-EFGH';
 const OWNER = { uid: 'owner-uid', email: 'owner@gmail.com' };
@@ -236,3 +236,116 @@ describe('사용자 프로필', () => {
     await assertFails(setDoc(doc(stranger, 'users', OWNER.uid), profile));
   });
 });
+
+describe('멤버 관리 (초대 취소 · 내보내기 · 나가기)', () => {
+  const INVITED = { uid: 'invited-uid', email: 'invited@gmail.com' };
+
+  /** 방장 + 참여한 짝꿍 + 아직 참여 전인 초대 대상이 있는 방 */
+  async function seedManagedRoom() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'shared_spaces', ROOM), {
+        ...roomData([OWNER.email, PARTNER.email, INVITED.email]),
+        joinedEmails: [OWNER.email, PARTNER.email],
+        memberNames: { [OWNER.email]: '나', [PARTNER.email]: '짝꿍', [INVITED.email]: '동생' },
+      });
+      await setDoc(doc(db, 'shared_spaces', ROOM, 'transactions', 'tx-1'), transaction('tx-1'));
+      await setDoc(doc(db, 'invitations', `${ROOM}__${INVITED.email}`), {
+        inviteCode: ROOM,
+        inviterUid: OWNER.uid,
+        inviterEmail: OWNER.email,
+        inviterName: '나',
+        partnerEmail: INVITED.email,
+        partnerName: '동생',
+        status: 'PENDING',
+        createdAt: 1,
+      });
+    });
+  }
+
+  test('방장은 참여한 멤버를 내보낼 수 있고, 내보낸 멤버는 더 이상 거래를 읽지 못한다', async () => {
+    await seedManagedRoom();
+    await assertSucceeds(
+      updateDoc(doc(googleUser(OWNER), 'shared_spaces', ROOM), {
+        memberEmails: arrayRemove(PARTNER.email),
+        joinedEmails: arrayRemove(PARTNER.email),
+      })
+    );
+    await assertFails(getDoc(doc(googleUser(PARTNER), 'shared_spaces', ROOM, 'transactions', 'tx-1')));
+  });
+
+  test('방장이 아니면 참여한 다른 멤버를 내보낼 수 없다', async () => {
+    await seedManagedRoom();
+    await assertFails(
+      updateDoc(doc(googleUser(PARTNER), 'shared_spaces', ROOM), {
+        memberEmails: arrayRemove(OWNER.email),
+      })
+    );
+    // 방장 말고 다른 참여 멤버를 지우는 것도 불가 (짝꿍이 초대 대상을 참여 처리한 뒤 지우는 우회 포함)
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'shared_spaces', ROOM), { joinedEmails: arrayUnion(INVITED.email) });
+    });
+    await assertFails(
+      updateDoc(doc(googleUser(PARTNER), 'shared_spaces', ROOM), {
+        memberEmails: arrayRemove(INVITED.email),
+        joinedEmails: arrayRemove(INVITED.email),
+      })
+    );
+  });
+
+  test('멤버는 아직 참여하지 않은 초대를 취소할 수 있다', async () => {
+    await seedManagedRoom();
+    const partner = googleUser(PARTNER);
+    await assertSucceeds(updateDoc(doc(partner, 'shared_spaces', ROOM), { memberEmails: arrayRemove(INVITED.email) }));
+    // 초대장도 취소 상태로 (취소한 사람이 초대한 사람으로 기록됨)
+    await assertSucceeds(
+      updateDoc(doc(partner, 'invitations', `${ROOM}__${INVITED.email}`), {
+        status: 'CANCELED',
+        inviterUid: PARTNER.uid,
+        inviterEmail: PARTNER.email,
+      })
+    );
+  });
+
+  test('멤버는 스스로 나갈 수 있지만 참여한 다른 멤버를 함께 빼며 나갈 수는 없다', async () => {
+    await seedManagedRoom();
+    // 초대 대상도 참여를 마친 상태로
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'shared_spaces', ROOM), { joinedEmails: arrayUnion(INVITED.email) });
+    });
+    const partner = googleUser(PARTNER);
+    await assertFails(
+      updateDoc(doc(partner, 'shared_spaces', ROOM), {
+        memberEmails: [OWNER.email],
+        joinedEmails: [OWNER.email],
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(partner, 'shared_spaces', ROOM), {
+        memberEmails: arrayRemove(PARTNER.email),
+        joinedEmails: arrayRemove(PARTNER.email),
+      })
+    );
+  });
+
+  test('초대받은 사람은 자신만 참여 처리할 수 있다', async () => {
+    await seedManagedRoom();
+    const invited = googleUser(INVITED);
+    await assertSucceeds(updateDoc(doc(invited, 'shared_spaces', ROOM), { joinedEmails: arrayUnion(INVITED.email) }));
+    await assertSucceeds(getDoc(doc(invited, 'shared_spaces', ROOM, 'transactions', 'tx-1')));
+  });
+
+  test('명단에 없는 사람을 참여 처리하거나 참여 멤버를 명단에서만 지울 수 없다', async () => {
+    await seedManagedRoom();
+    await assertFails(
+      updateDoc(doc(googleUser(OWNER), 'shared_spaces', ROOM), { joinedEmails: arrayUnion(STRANGER.email) })
+    );
+    await assertFails(
+      updateDoc(doc(googleUser(OWNER), 'shared_spaces', ROOM), { memberEmails: arrayRemove(PARTNER.email) })
+    );
+    await assertFails(
+      updateDoc(doc(googleUser(PARTNER), 'shared_spaces', ROOM), { joinedEmails: arrayUnion(INVITED.email) })
+    );
+  });
+});
+

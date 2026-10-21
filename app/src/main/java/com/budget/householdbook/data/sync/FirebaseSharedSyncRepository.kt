@@ -1,6 +1,7 @@
 package com.budget.householdbook.data.sync
 
 import android.app.Activity
+import com.budget.householdbook.domain.model.SharedRoomInfo
 import com.budget.householdbook.domain.model.UserTier
 import com.budget.householdbook.domain.repository.SharedSyncRepository
 import kotlinx.coroutines.flow.StateFlow
@@ -62,4 +63,9 @@ class FirebaseSharedSyncRepository(
     override fun isValidInviteCode(code: String?): Boolean = RemoteSyncManager.isValidInviteCode(code)
 
     override fun generateInviteCode(): String = RemoteSyncManager.generateInviteCode()
+
+    override suspend fun loadRoomMembers(): Result<SharedRoomInfo> = syncManager.loadRoomMembers()
+    override suspend fun cancelInvitation(partnerEmail: String): Result<SharedRoomInfo> = syncManager.cancelInvitation(partnerEmail)
+    override suspend fun removeMember(memberEmail: String): Result<SharedRoomInfo> = syncManager.removeMember(memberEmail)
+    override suspend fun leaveRoom(): Result<Unit> = syncManager.leaveRoom()
 }

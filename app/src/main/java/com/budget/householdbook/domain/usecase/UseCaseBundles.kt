@@ -52,7 +52,11 @@ data class AccountUseCases(
     val signOut: SignOutGoogleUseCase,
     val invitePartner: InvitePartnerUseCase,
     val updateSharedMembers: UpdateSharedMembersUseCase,
-    val updateUserTier: UpdateUserTierUseCase
+    val updateUserTier: UpdateUserTierUseCase,
+    val loadMembers: LoadSharedMembersUseCase,
+    val cancelInvitation: CancelInvitationUseCase,
+    val removeMember: RemoveSharedMemberUseCase,
+    val leaveSharedSpace: LeaveSharedSpaceUseCase
 )
 
 /** 공간 전환·예산·화면 스타일·무시 키워드 등 설정 */

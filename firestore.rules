@@ -94,21 +94,48 @@ service cloud.firestore {
         && (resource == null || myEmail() in resource.data.memberEmails);
       allow list: if false;
 
-      // 방을 만든 사람이 방장이며, 처음에는 본인만 멤버
+      // 참여를 마친 멤버 (예전 방 문서에는 없을 수 있음)
+      function joinedOf(data) {
+        return data.get('joinedEmails', []);
+      }
+
+      // 방장이 아닌 멤버가 할 수 있는 멤버 명단 변경
+      // - 초대: memberEmails에 추가 (참여 전 상태)
+      // - 초대 수락: joinedEmails에 나만 추가
+      // - 초대 취소: 아직 참여하지 않은 이메일만 memberEmails에서 제거
+      // - 나가기: 나만 memberEmails·joinedEmails에서 제거
+      // 참여한 다른 멤버를 내보내는 것은 방장만 가능
+      function memberChangeAllowedForNonOwner() {
+        let me = [myEmail()].toSet();
+        let oldM = resource.data.memberEmails.toSet();
+        let newM = request.resource.data.memberEmails.toSet();
+        let oldJ = joinedOf(resource.data).toSet();
+        let newJ = joinedOf(request.resource.data).toSet();
+        let removedOthers = oldM.difference(newM).difference(me);
+        return newJ.difference(oldJ).difference(me).size() == 0
+          && oldJ.difference(newJ).difference(me).size() == 0
+          && !removedOthers.hasAny(oldJ);
+      }
+
+      // 방을 만든 사람이 방장이며, 처음에는 본인만 멤버(참여 완료)
       allow create: if signedInWithGoogle()
         && isValidInviteCode(inviteCode)
         && isValidRoom(request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerEmail == myEmail()
-        && request.resource.data.memberEmails == [myEmail()];
+        && request.resource.data.memberEmails == [myEmail()]
+        && joinedOf(request.resource.data) in [[], [myEmail()]];
 
-      // 기존 멤버만 멤버 추가(초대)·이름 변경 가능. 방장 정보는 바꿀 수 없고 방장은 내보낼 수 없음
+      // 기존 멤버만 변경 가능. 방장 정보는 바꿀 수 없고 방장은 내보낼 수 없으며,
+      // 참여한 멤버는 항상 memberEmails 안에 있어야 함
       allow update: if signedInWithGoogle()
         && myEmail() in resource.data.memberEmails
         && isValidRoom(request.resource.data)
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.ownerEmail == resource.data.ownerEmail
-        && resource.data.ownerEmail in request.resource.data.memberEmails;
+        && resource.data.ownerEmail in request.resource.data.memberEmails
+        && request.resource.data.memberEmails.toSet().hasAll(joinedOf(request.resource.data))
+        && (resource.data.ownerUid == request.auth.uid || memberChangeAllowedForNonOwner());
 
       allow delete: if signedInWithGoogle() && resource.data.ownerUid == request.auth.uid;
 

@@ -19,6 +19,7 @@ import com.budget.householdbook.domain.model.HouseholdOverview
 import com.budget.householdbook.domain.model.IngestionSource
 import com.budget.householdbook.domain.model.FinancialInstitutions
 import com.budget.householdbook.domain.model.QuickInquiryCredentials
+import com.budget.householdbook.domain.model.SharedRoomInfo
 import com.budget.householdbook.domain.model.MealPriceConfig
 import com.budget.householdbook.domain.model.MealType
 import com.budget.householdbook.domain.model.SplitApprovalItem
@@ -503,6 +504,53 @@ class MainViewModel(
         }
     }
 
+    // ---------------- 함께 쓰는 멤버 관리 ----------------
+
+    private val _sharedMembers = MutableStateFlow<SharedMembersState>(SharedMembersState.Idle)
+    val sharedMembers: StateFlow<SharedMembersState> = _sharedMembers.asStateFlow()
+
+    fun loadSharedMembers() {
+        viewModelScope.launch {
+            _sharedMembers.value = SharedMembersState.Loading
+            _sharedMembers.value = account.loadMembers().fold(
+                onSuccess = { SharedMembersState.Loaded(it) },
+                onFailure = { SharedMembersState.Error(it.message ?: "멤버 목록을 불러오지 못했습니다.") }
+            )
+        }
+    }
+
+    fun cancelInvitation(email: String) = runMemberAction(
+        action = { account.cancelInvitation(email) },
+        successMessage = "'$email' 초대를 취소했습니다."
+    )
+
+    fun removeSharedMember(email: String) = runMemberAction(
+        action = { account.removeMember(email) },
+        successMessage = "'$email' 님을 공유 장부에서 내보냈습니다."
+    )
+
+    fun leaveSharedSpace() {
+        viewModelScope.launch {
+            account.leaveSharedSpace()
+                .onSuccess {
+                    _sharedMembers.value = SharedMembersState.Idle
+                    _snackbarMessage.value = "공유 장부에서 나왔습니다. 이 휴대폰의 기록은 그대로 남아 있습니다."
+                }
+                .onFailure { _snackbarMessage.value = it.message ?: "나가기 중 문제가 발생했습니다." }
+        }
+    }
+
+    private fun runMemberAction(action: suspend () -> Result<SharedRoomInfo>, successMessage: String) {
+        viewModelScope.launch {
+            action()
+                .onSuccess {
+                    _sharedMembers.value = SharedMembersState.Loaded(it)
+                    _snackbarMessage.value = successMessage
+                }
+                .onFailure { _snackbarMessage.value = it.message ?: "멤버 관리 중 문제가 발생했습니다." }
+        }
+    }
+
     fun invitePartnerByGoogleEmail(
         partnerEmail: String,
         partnerName: String,
@@ -618,3 +666,11 @@ data class UndoSnackbar(
     val actionLabel: String = "되돌리기",
     val onUndo: () -> Unit
 )
+
+/** 멤버 관리 화면 상태 */
+sealed interface SharedMembersState {
+    data object Idle : SharedMembersState
+    data object Loading : SharedMembersState
+    data class Loaded(val info: SharedRoomInfo) : SharedMembersState
+    data class Error(val message: String) : SharedMembersState
+}

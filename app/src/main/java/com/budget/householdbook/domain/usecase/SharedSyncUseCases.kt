@@ -1,5 +1,6 @@
 package com.budget.householdbook.domain.usecase
 
+import com.budget.householdbook.domain.model.SharedRoomInfo
 import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.data.sync.GoogleLoginResult
 import com.budget.householdbook.domain.model.SharedSyncOutcome
@@ -214,4 +215,26 @@ class SignOutGoogleUseCase(
             isShared = false
         )
     }
+}
+
+/** 공유 장부 멤버 목록 (방장 / 함께 쓰는 중 / 수락 대기) */
+class LoadSharedMembersUseCase(private val sharedSyncRepository: SharedSyncRepository) {
+    suspend operator fun invoke(): Result<SharedRoomInfo> = sharedSyncRepository.loadRoomMembers()
+}
+
+/** 아직 수락하지 않은 초대 취소 */
+class CancelInvitationUseCase(private val sharedSyncRepository: SharedSyncRepository) {
+    suspend operator fun invoke(partnerEmail: String): Result<SharedRoomInfo> =
+        sharedSyncRepository.cancelInvitation(partnerEmail)
+}
+
+/** 함께 쓰던 멤버 내보내기 (방장만) */
+class RemoveSharedMemberUseCase(private val sharedSyncRepository: SharedSyncRepository) {
+    suspend operator fun invoke(memberEmail: String): Result<SharedRoomInfo> =
+        sharedSyncRepository.removeMember(memberEmail)
+}
+
+/** 공유 장부에서 나가기 (방장이 아닌 멤버). 내 휴대폰 기록은 유지 */
+class LeaveSharedSpaceUseCase(private val sharedSyncRepository: SharedSyncRepository) {
+    suspend operator fun invoke(): Result<Unit> = sharedSyncRepository.leaveRoom()
 }

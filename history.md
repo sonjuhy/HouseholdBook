@@ -314,3 +314,12 @@
 - 디버그 키 SHA-1을 구해 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 0번에 Firebase 설정 순서와 함께 정리
 - 검증: 디버그·출시 빌드, 단위 테스트 통과. 에뮬레이터에서 현재 설정 상태로 로그인을 누르면 설정 안내 문구가 뜨는 것까지 확인
 - **미확인**: 실제 구글 계정 로그인 성공 — Firebase 콘솔에 SHA-1을 등록하고 새 `google-services.json`을 넣은 뒤 확인 필요
+
+---
+
+## 17단계: 함께 쓰는 멤버 관리 — 초대 취소 · 내보내기 · 나가기 (2026-10-21)
+- **데이터**: 공유 방 문서에 `joinedEmails`(초대를 수락한 멤버)와 `memberNames`(이메일→이름) 추가. 초대하면 `memberEmails`에만 들어가 `수락 대기`, 초대받은 사람이 로그인하면 `joinedEmails`에 자신을 추가해 `함께 쓰는 중`. 예전 방(참여 기록 없음)은 모두 참여 중으로 보고, 방장이 다음에 초대할 때 기존 멤버를 참여로 기록
+- **보안 규칙**: 방장이 아닌 멤버는 초대·자기 참여·참여 전 초대 취소·자기 나가기만 가능하고, 참여한 다른 멤버를 내보내는 것은 방장만 가능. Firestore 규칙 테스트 6건 추가 (총 22건 통과)
+- **앱**: 설정 > `함께 쓰는 멤버 관리` 다이얼로그 — 상태 배지, 초대 취소(초대장도 CANCELED), 내보내기·나가기(확인 다이얼로그). 내보내지거나 나간 기기는 실시간 연결을 끊고 공통 생활비를 혼자 쓰기로 전환(기록 유지), 나간 사람은 다음 로그인 때 예전 방으로 다시 연결되지 않도록 프로필 초대번호를 새로 발급
+- **검증**: 단위 74건(`SharedRoomMembersTest` 5건), 계측 12건(`SharedMembersDialogTest` 2건), Firestore 규칙 22건 통과
+- **미확인**: 실제 Firebase에서 두 계정으로 내보내기·나가기 — 구글 로그인 설정(16단계)과 **새 규칙 배포** 후 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 2-1로 확인 필요

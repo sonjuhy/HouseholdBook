@@ -84,7 +84,7 @@
    - 업로드 대상은 **`공통 생활비` 공간의 `PENDING_UPLOAD` 내역뿐**이며, `PENDING_DELETE` 내역은 원격 문서를 지운 뒤 로컬에서 제거합니다.
    - `shared_spaces/{inviteCode}/transactions`에 `SnapshotListener`를 연결해 상대방 변경(추가·수정·삭제)을 Room에 반영합니다. 충돌은 `updatedAt` 기준 LWW(Last-Write-Wins)로 해결합니다.
    - 초대번호는 `generateInviteCode()`가 `SecureRandom`으로 `HB-XXXX-XXXX` 형식(31자 × 8자리)을 발급합니다.
-   - Firestore 구조: `users/{uid}`(프로필·플랜), `invitations/{inviteCode}__{partnerEmail}`(초대장), `shared_spaces/{inviteCode}`(방 정보 + `memberEmails` 멤버 명단), `shared_spaces/{inviteCode}/transactions/{remoteId}`(공통 생활비 내역).
+   - Firestore 구조: `users/{uid}`(프로필·플랜), `invitations/{inviteCode}__{partnerEmail}`(초대장), `shared_spaces/{inviteCode}`(방 정보 + `memberEmails` 접근 명단 + `joinedEmails` 초대를 수락한 멤버 + `memberNames` 이메일→이름), `shared_spaces/{inviteCode}/transactions/{remoteId}`(공통 생활비 내역).
    - 동기화 전 `ensureRoomMembership()`으로 방 문서의 `memberEmails`에 내 이메일이 있는지 확인하고, 방이 없으면 내가 방장인 새 방을 만듭니다. 멤버가 아니면 업로드·수신을 하지 않습니다.
    - 초대 시 상대 이메일을 먼저 `memberEmails`에 추가한 뒤 초대장을 만들고, 상대가 로그인하면 `PENDING` 초대장을 찾아 자동 연결(`ACCEPTED`)합니다. 초대번호만 입력해서 다른 방에 들어가는 방식은 없습니다.
    - 클라우드 기능은 **구글 공식 인증 창(`OAuthProvider("google.com")`)으로 로그인한 계정만** 사용합니다. 익명 로그인은 쓰지 않으며, 이메일을 직접 입력해도 인증 창에서 같은 계정으로 확인해야 합니다.
@@ -100,7 +100,7 @@
    - 모든 규칙은 `sign_in_provider == 'google.com'` + `email_verified` 인 구글 로그인 사용자만 허용합니다 (익명 로그인 차단).
    - **구글 로그인 방식**: Credential Manager(`androidx.credentials` + `googleid`)의 `GetSignInWithGoogleOption`으로 Google ID 토큰을 받고 `GoogleAuthProvider.getCredential()` → `FirebaseAuth.signInWithCredential()`로 로그인합니다. 웹 클라이언트 ID는 google-services 플러그인이 만드는 `default_web_client_id` 리소스를 실행 중에 찾아 쓰며, 없으면(=Firebase에 SHA-1 미등록 상태로 받은 `google-services.json`) 설정 안내 문구를 보여줍니다. R8용 keep 규칙은 `keepRules/rules.keep`에 있습니다.
    - `users/{uid}`: 본인만 읽기·쓰기. `uid`/`email` 필드는 토큰 값과 같아야 합니다.
-   - `shared_spaces/{inviteCode}`: 방 문서는 `memberEmails`에 포함된 멤버만 조회·수정합니다. 새 방은 `HB-XXXX-XXXX` 형식(`isValidInviteCode`)일 때만, 나 혼자 멤버·방장으로 만들 수 있습니다. 방장 정보는 바꿀 수 없고 멤버는 최대 10명입니다. 하위 `transactions`도 멤버만 읽고 쓰며 `remoteId`·`spaceId`·`amount`·`updatedAt`을 검증합니다.
+   - `shared_spaces/{inviteCode}`: 방 문서는 `memberEmails`에 포함된 멤버만 조회·수정합니다. 멤버 명단 변경은 **방장은 자유롭게(방장 제외 불가)**, 방장이 아닌 멤버는 초대(추가)·자기 참여 기록·아직 참여하지 않은 초대 취소·자기 나가기만 할 수 있고, 참여한 다른 멤버를 내보낼 수 없습니다. `joinedEmails`는 항상 `memberEmails` 안에 있어야 합니다 (`joinedEmails`가 없는 예전 방도 허용). 새 방은 `HB-XXXX-XXXX` 형식(`isValidInviteCode`)일 때만, 나 혼자 멤버·방장으로 만들 수 있습니다. 방장 정보는 바꿀 수 없고 멤버는 최대 10명입니다. 하위 `transactions`도 멤버만 읽고 쓰며 `remoteId`·`spaceId`·`amount`·`updatedAt`을 검증합니다.
    - `invitations/{inviteCode}__{email}`: 방 멤버만, 이미 `memberEmails`에 추가된 상대에게만 만들 수 있습니다. 초대한 사람·초대받은 사람만 볼 수 있고, 초대받은 사람은 수락/거절 상태만 바꿀 수 있습니다.
    - 규칙 파일은 앱 코드와 함께 바뀌므로, 앱 배포 전 `firebase deploy --only firestore:rules`로 게시해야 합니다. 예전 경로(`shared_spaces/__user_profiles__`, `__invitations__`, 방 문서 없는 예전 방)는 새 규칙에서 접근할 수 없습니다.
    - 남은 과제: `userTier`는 아직 사용자가 직접 쓰는 값이라 서버에서 PRO 여부를 강제하지 못합니다 (결제 검증 후 Cloud Functions가 기록하는 방식 필요). 초대장은 로그인 시 자동 수락되므로, 수락 확인 화면 추가를 검토해야 합니다.

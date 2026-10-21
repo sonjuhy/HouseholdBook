@@ -59,6 +59,10 @@ import com.budget.householdbook.domain.usecase.IngestRawNotificationUseCase
 import com.budget.householdbook.domain.usecase.IngestionUseCases
 import com.budget.householdbook.domain.usecase.InitializeAppUseCase
 import com.budget.householdbook.domain.usecase.InvitePartnerUseCase
+import com.budget.householdbook.domain.usecase.CancelInvitationUseCase
+import com.budget.householdbook.domain.usecase.LeaveSharedSpaceUseCase
+import com.budget.householdbook.domain.usecase.LoadSharedMembersUseCase
+import com.budget.householdbook.domain.usecase.RemoveSharedMemberUseCase
 import com.budget.householdbook.domain.usecase.IsKbAutoInquiryReadyUseCase
 import com.budget.householdbook.domain.usecase.LinkCancelToTransactionUseCase
 import com.budget.householdbook.domain.usecase.MealUseCases
@@ -193,6 +197,10 @@ val useCaseModule = module {
     factoryOf(::UpdateUserTierUseCase)
     factoryOf(::SignInWithGoogleUseCase)
     factoryOf(::InvitePartnerUseCase)
+    factoryOf(::LoadSharedMembersUseCase)
+    factoryOf(::CancelInvitationUseCase)
+    factoryOf(::RemoveSharedMemberUseCase)
+    factoryOf(::LeaveSharedSpaceUseCase)
     factoryOf(::SignOutGoogleUseCase)
     factoryOf(::SelectSpaceUseCase)
     factoryOf(::UpdateThemeModeUseCase)

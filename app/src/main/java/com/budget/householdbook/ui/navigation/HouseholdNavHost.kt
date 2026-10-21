@@ -5,6 +5,8 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -94,6 +96,7 @@ fun HouseholdNavHost(
         }
 
         composable<SettingsRoute> {
+            val sharedMembersState by viewModel.sharedMembers.collectAsStateWithLifecycle()
             val context = LocalContext.current
             SettingsAndCategoryScreen(
                 uiState = uiState,
@@ -129,7 +132,12 @@ fun HouseholdNavHost(
                 onInsertSampleData = { viewModel.insertSampleData() },
                 onUpdateEnabledInstitutions = { viewModel.updateEnabledInstitutions(it) },
                 onUpdateExcludedSources = { ids, autoFilter -> viewModel.updateExcludedSources(ids, autoFilter) },
-                onUpdateDefaultIngestSpace = { viewModel.updateDefaultIngestSpace(it) }
+                onUpdateDefaultIngestSpace = { viewModel.updateDefaultIngestSpace(it) },
+                sharedMembersState = sharedMembersState,
+                onLoadSharedMembers = { viewModel.loadSharedMembers() },
+                onCancelInvitation = { viewModel.cancelInvitation(it) },
+                onRemoveSharedMember = { viewModel.removeSharedMember(it) },
+                onLeaveSharedSpace = { viewModel.leaveSharedSpace() }
             )
         }
     }

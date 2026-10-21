@@ -74,6 +74,7 @@ import com.budget.householdbook.domain.model.ThemeMode
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.UserTier
 import com.budget.householdbook.ui.HouseholdUiState
+import com.budget.householdbook.ui.SharedMembersState
 import com.budget.householdbook.ui.theme.ExpenseCoral
 import com.budget.householdbook.ui.theme.IncomeBlue
 import com.budget.householdbook.ui.theme.IosSystemGray
@@ -105,7 +106,12 @@ fun SettingsAndCategoryScreen(
     onInsertSampleData: () -> Unit,
     onUpdateEnabledInstitutions: (Set<String>) -> Unit,
     onUpdateExcludedSources: (excludedIds: Set<String>, autoFilterDuplicates: Boolean) -> Unit,
-    onUpdateDefaultIngestSpace: (spaceId: String?) -> Unit
+    onUpdateDefaultIngestSpace: (spaceId: String?) -> Unit,
+    sharedMembersState: SharedMembersState,
+    onLoadSharedMembers: () -> Unit,
+    onCancelInvitation: (email: String) -> Unit,
+    onRemoveSharedMember: (email: String) -> Unit,
+    onLeaveSharedSpace: () -> Unit
 ) {
     val context = LocalContext.current
     // 초대번호·멤버는 현재 선택된 공간과 무관하게 항상 '공통 생활비' 공간 기준
@@ -130,6 +136,7 @@ fun SettingsAndCategoryScreen(
     var showMemberShareDialog by remember { mutableStateOf(false) }
     var showInstitutionPicker by remember { mutableStateOf(false) }
     var showSourceExclusion by remember { mutableStateOf(false) }
+    var showSharedMembers by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -214,6 +221,17 @@ fun SettingsAndCategoryScreen(
                                 icon = Icons.Default.Share
                             )
                         }
+
+                        // 초대 취소 · 멤버 내보내기 · 나가기
+                        Spacer(modifier = Modifier.height(8.dp))
+                        IosTintedButton(
+                            text = "함께 쓰는 멤버 관리",
+                            onClick = {
+                                showSharedMembers = true
+                                onLoadSharedMembers()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     } else {
                         Text(
                             text = "구글 계정으로 로그인하고 시작하기",
@@ -943,6 +961,24 @@ fun SettingsAndCategoryScreen(
                     Text("취소", maxLines = 1, softWrap = false)
                 }
             }
+        )
+    }
+
+    if (showSharedMembers) {
+        SharedMembersDialog(
+            state = sharedMembersState,
+            onRetry = onLoadSharedMembers,
+            onInviteNew = {
+                showSharedMembers = false
+                showMemberShareDialog = true
+            },
+            onCancelInvitation = onCancelInvitation,
+            onRemoveMember = onRemoveSharedMember,
+            onLeave = {
+                onLeaveSharedSpace()
+                showSharedMembers = false
+            },
+            onDismiss = { showSharedMembers = false }
         )
     }
 

@@ -33,10 +33,20 @@ data class AppUserSettings(
     val kbAutoInquiryEnabled: Boolean = false,
     val kbAutoInquiryIntervalHours: Int = DEFAULT_KB_AUTO_INQUIRY_HOURS,
     /** 알림·문자를 읽어올 금융기관 ID ([FinancialInstitutions]) */
-    val enabledInstitutionIds: Set<String> = FinancialInstitutions.DEFAULT_ENABLED_IDS
+    val enabledInstitutionIds: Set<String> = FinancialInstitutions.DEFAULT_ENABLED_IDS,
+    /** 알림을 읽지 않을 앱 패키지 (문자는 [NotificationSources.SMS_SOURCE_ID]) */
+    val excludedSourceIds: Set<String> = emptySet(),
+    /** 지금까지 금융 알림을 보낸 출처: ID(패키지 또는 sms) → 앱 이름 */
+    val seenSources: Map<String, String> = emptyMap(),
+    /** 다른 앱에서 같은 결제 알림이 연달아 오면 하나만 남기기 */
+    val autoFilterDuplicateAlerts: Boolean = true,
+    /** 알림으로 들어온 내역의 기본 저장 공간 (null이면 마지막으로 보던 공간) */
+    val defaultIngestSpaceId: String? = null
 )
 
 const val DEFAULT_KB_AUTO_INQUIRY_HOURS = 6
+
+private const val SEEN_SEPARATOR = '\u001F'
 
 class UserPreferencesRepository(private val context: Context) : SettingsRepository {
 
@@ -56,6 +66,10 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
         val KB_AUTO_INQUIRY_ENABLED = booleanPreferencesKey("kb_auto_inquiry_enabled")
         val KB_AUTO_INQUIRY_HOURS = intPreferencesKey("kb_auto_inquiry_hours")
         val ENABLED_INSTITUTIONS = stringSetPreferencesKey("enabled_institution_ids")
+        val EXCLUDED_SOURCES = stringSetPreferencesKey("excluded_notification_sources")
+        val SEEN_SOURCES = stringSetPreferencesKey("seen_notification_sources")
+        val AUTO_FILTER_DUPLICATES = booleanPreferencesKey("auto_filter_duplicate_alerts")
+        val DEFAULT_INGEST_SPACE = stringPreferencesKey("default_ingest_space_id")
     }
 
     override val userSettingsFlow: Flow<AppUserSettings> = context.dataStore.data.map { prefs ->
@@ -80,7 +94,11 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
             isSeedCompleted = prefs[Keys.IS_SEED_COMPLETED] ?: false,
             kbAutoInquiryEnabled = prefs[Keys.KB_AUTO_INQUIRY_ENABLED] ?: false,
             kbAutoInquiryIntervalHours = prefs[Keys.KB_AUTO_INQUIRY_HOURS] ?: DEFAULT_KB_AUTO_INQUIRY_HOURS,
-            enabledInstitutionIds = prefs[Keys.ENABLED_INSTITUTIONS] ?: FinancialInstitutions.DEFAULT_ENABLED_IDS
+            enabledInstitutionIds = prefs[Keys.ENABLED_INSTITUTIONS] ?: FinancialInstitutions.DEFAULT_ENABLED_IDS,
+            excludedSourceIds = prefs[Keys.EXCLUDED_SOURCES] ?: emptySet(),
+            seenSources = (prefs[Keys.SEEN_SOURCES] ?: emptySet()).mapNotNull { decodeSeenSource(it) }.toMap(),
+            autoFilterDuplicateAlerts = prefs[Keys.AUTO_FILTER_DUPLICATES] ?: true,
+            defaultIngestSpaceId = prefs[Keys.DEFAULT_INGEST_SPACE]?.takeIf { it.isNotBlank() }
         )
     }
 
@@ -138,6 +156,36 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
             prefs[Keys.KB_AUTO_INQUIRY_ENABLED] = enabled
             prefs[Keys.KB_AUTO_INQUIRY_HOURS] = intervalHours
         }
+    }
+
+    override suspend fun setExcludedSources(ids: Set<String>) {
+        context.dataStore.edit { it[Keys.EXCLUDED_SOURCES] = ids }
+    }
+
+    override suspend fun recordSeenSource(sourceId: String, label: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.SEEN_SOURCES] ?: emptySet()
+            val entry = encodeSeenSource(sourceId, label)
+            if (entry in current) return@edit
+            // 같은 출처의 예전 이름은 지우고 최신 앱 이름으로 저장
+            prefs[Keys.SEEN_SOURCES] = current.filterNot { decodeSeenSource(it)?.first == sourceId }.toSet() + entry
+        }
+    }
+
+    override suspend fun setAutoFilterDuplicateAlerts(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.AUTO_FILTER_DUPLICATES] = enabled }
+    }
+
+    override suspend fun setDefaultIngestSpaceId(spaceId: String?) {
+        context.dataStore.edit { it[Keys.DEFAULT_INGEST_SPACE] = spaceId.orEmpty() }
+    }
+
+    private fun encodeSeenSource(sourceId: String, label: String) = "$sourceId$SEEN_SEPARATOR$label"
+
+    private fun decodeSeenSource(raw: String): Pair<String, String>? {
+        val index = raw.indexOf(SEEN_SEPARATOR)
+        if (index <= 0) return null
+        return raw.substring(0, index) to raw.substring(index + 1)
     }
 
     override suspend fun setEnabledInstitutions(ids: Set<String>) {

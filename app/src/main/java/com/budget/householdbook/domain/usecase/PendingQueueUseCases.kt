@@ -1,5 +1,6 @@
 package com.budget.householdbook.domain.usecase
 
+import com.budget.householdbook.domain.model.CategoryDefaults
 import com.budget.householdbook.core.common.CurrencyAndDateFormatter
 import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.data.local.entity.IgnoredKeywordEntity
@@ -278,9 +279,13 @@ class ApproveAllPendingItemsUseCase(
                 // 원본을 못 찾은 취소 알림은 사용자가 직접 확인하도록 대기 목록에 남겨둠
                 continue
             } else {
-                val fallbackCatId = item.suggestedCategoryId
-                    ?: categoryRepository.getCategoriesBySpaceOnce(item.suggestedSpaceId).firstOrNull()?.id
-                    ?: 1L
+                // 저장 공간에 없는 카테고리가 남아 있지 않도록 공간 기준으로 다시 맞춤
+                val (categoryId, subCategoryId) = CategoryDefaults.pick(
+                    spaceCategories = categoryRepository.getCategoriesBySpaceOnce(item.suggestedSpaceId),
+                    type = item.parsedType,
+                    preferredCategoryId = item.suggestedCategoryId,
+                    preferredSubCategoryId = item.suggestedSubCategoryId
+                )
                 approvePendingItem(
                     pendingId = item.id,
                     targetSpaceId = item.suggestedSpaceId,
@@ -288,8 +293,8 @@ class ApproveAllPendingItemsUseCase(
                     amount = item.parsedAmount,
                     merchantOrTitle = item.parsedMerchant,
                     memo = "",
-                    categoryId = fallbackCatId,
-                    subCategoryId = item.suggestedSubCategoryId
+                    categoryId = categoryId ?: 1L,
+                    subCategoryId = subCategoryId
                 )
                 processedCount++
             }
@@ -298,5 +303,31 @@ class ApproveAllPendingItemsUseCase(
             processedCount = processedCount,
             remainingCount = pendingQueueRepository.observePendingCount().first()
         )
+    }
+}
+
+/**
+ * 검수 카드에서 고른 공간·유형·분류를 대기 항목에 바로 저장
+ * - 화면 상태에만 두면 일괄 승인·수정·분할이나 목록 스크롤 후에 처음 추천값으로 돌아가므로 DB에 반영
+ * - 공간을 바꾸면 카테고리도 그 공간 것으로 맞춤
+ */
+class UpdatePendingClassificationUseCase(
+    private val pendingQueueRepository: PendingQueueRepository,
+    private val categoryRepository: CategoryRepository
+) {
+    suspend operator fun invoke(
+        pendingId: Long,
+        spaceId: String,
+        type: TransactionType,
+        categoryId: Long?,
+        subCategoryId: Long?
+    ) {
+        val (pickedCategoryId, pickedSubId) = CategoryDefaults.pick(
+            spaceCategories = categoryRepository.getCategoriesBySpaceOnce(spaceId),
+            type = type,
+            preferredCategoryId = categoryId,
+            preferredSubCategoryId = subCategoryId
+        )
+        pendingQueueRepository.updateClassification(pendingId, spaceId, type, pickedCategoryId, pickedSubId)
     }
 }

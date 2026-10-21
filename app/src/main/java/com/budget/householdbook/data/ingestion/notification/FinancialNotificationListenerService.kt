@@ -42,7 +42,8 @@ class FinancialNotificationListenerService : NotificationListenerService() {
 
         if (title.isBlank() && body.isBlank()) return
 
-        val appName = FinancialParserEngine.resolveAppName(packageName)
+        // 앱별 알림 제외 목록에서 알아보기 쉽도록 실제 앱 이름(예: KB스타뱅킹, KB Pay) 사용
+        val appName = resolveInstalledAppLabel(packageName) ?: FinancialParserEngine.resolveAppName(packageName)
         serviceScope.launch {
             ingestRawNotification(
                 sourceType = IngestionSource.APP_NOTIFICATION,
@@ -53,6 +54,11 @@ class FinancialNotificationListenerService : NotificationListenerService() {
             )
         }
     }
+
+    private fun resolveInstalledAppLabel(packageName: String): String? = runCatching {
+        val info = packageManager.getApplicationInfo(packageName, 0)
+        packageManager.getApplicationLabel(info).toString().takeIf { it.isNotBlank() }
+    }.getOrNull()
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()

@@ -65,6 +65,8 @@
    - 은행 23곳 + 카드사 3곳의 ID·표시 이름·분류·앱 패키지·문자 별칭·빠른조회 지원 상태를 한곳에서 관리합니다. 패키지 이름은 Google Play 스토어 상세 페이지로 확인했습니다 (2026-10).
    - 알림은 패키지로, 문자는 본문 별칭(긴 것부터 비교: `KB국민카드`가 `KB국민`보다 우선)으로 금융기관을 판별하고, `FinancialParserEngine`은 판별된 금융기관 이름만 가맹점명에서 지웁니다.
    - 사용자가 끈 금융기관은 `IngestRawNotificationUseCase`에서 걸러냅니다.
+   - 같은 단계에서 알림 출처(앱 패키지 / `sms` / 패키지 없는 예시 알림은 `app:{이름}`)를 `seenSources`에 기록하고, `excludedSourceIds`에 든 출처는 건너뜁니다. 알림 리스너는 실제 앱 이름을 `PackageManager`로 읽으며, Android 11+ 패키지 공개 범위를 위해 `AndroidManifest.xml`의 `<queries>`에 지원 금융 앱 패키지를 선언합니다 (`FinancialInstitutions.kt`와 같게 유지).
+   - 다른 출처의 같은 결제 알림은 `EnqueueParsedDraftUseCase`에서 최근 3분 대기 항목(상태 무관, `getRecentSince`)과 비교해 거릅니다 (`DuplicateAlertDetector`).
 1. **푸시 알림 수집 (`NotificationListenerService`)**:
    - Android 프레임워크 기본 API 사용 (`AndroidManifest.xml`에 `BIND_NOTIFICATION_LISTENER_SERVICE` 권한과 함께 등록).
    - 프로세스 종료 후 알림 유실 방지를 위해 `onListenerDisconnected()`에서 `requestRebind()` 호출 필수.

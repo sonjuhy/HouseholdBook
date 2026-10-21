@@ -37,3 +37,18 @@ class DeleteIgnoredKeywordUseCase(private val ruleRepository: AutomationRuleRepo
         ruleRepository.deleteIgnoredKeyword(id)
     }
 }
+
+/** 앱별 알림 제외 목록 저장 */
+class UpdateExcludedSourcesUseCase(private val settingsRepository: SettingsRepository) {
+    suspend operator fun invoke(ids: Set<String>) = settingsRepository.setExcludedSources(ids)
+}
+
+/** 다른 앱에서 온 같은 결제 알림 자동 거르기 켜기/끄기 */
+class UpdateAutoFilterDuplicatesUseCase(private val settingsRepository: SettingsRepository) {
+    suspend operator fun invoke(enabled: Boolean) = settingsRepository.setAutoFilterDuplicateAlerts(enabled)
+}
+
+/** 알림으로 들어온 내역의 기본 저장 공간 (null = 마지막으로 보던 공간) */
+class UpdateDefaultIngestSpaceUseCase(private val settingsRepository: SettingsRepository) {
+    suspend operator fun invoke(spaceId: String?) = settingsRepository.setDefaultIngestSpaceId(spaceId)
+}

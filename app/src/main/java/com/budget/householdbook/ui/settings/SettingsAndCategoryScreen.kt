@@ -103,7 +103,9 @@ fun SettingsAndCategoryScreen(
     onUpdateKbAutoInquiry: (enabled: Boolean, intervalHours: Int) -> Unit,
     onRemoveIgnoredKeyword: (Long) -> Unit,
     onInsertSampleData: () -> Unit,
-    onUpdateEnabledInstitutions: (Set<String>) -> Unit
+    onUpdateEnabledInstitutions: (Set<String>) -> Unit,
+    onUpdateExcludedSources: (excludedIds: Set<String>, autoFilterDuplicates: Boolean) -> Unit,
+    onUpdateDefaultIngestSpace: (spaceId: String?) -> Unit
 ) {
     val context = LocalContext.current
     // 초대번호·멤버는 현재 선택된 공간과 무관하게 항상 '공통 생활비' 공간 기준
@@ -127,6 +129,7 @@ fun SettingsAndCategoryScreen(
     var showKbSetupDialog by remember { mutableStateOf(false) }
     var showMemberShareDialog by remember { mutableStateOf(false) }
     var showInstitutionPicker by remember { mutableStateOf(false) }
+    var showSourceExclusion by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -560,6 +563,62 @@ fun SettingsAndCategoryScreen(
                         )
                     }
 
+                    // 앱별 알림 제외 (같은 결제가 카드 앱·은행 앱·문자에서 모두 올 때)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 10.dp)
+                        ) {
+                            Text(
+                                text = "앱별 알림 제외",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = sourceExclusionSummary(
+                                    uiState.settings.excludedSourceIds,
+                                    uiState.settings.autoFilterDuplicateAlerts
+                                ),
+                                fontSize = 12.sp,
+                                color = IosSystemGray
+                            )
+                        }
+                        IosTintedButton(
+                            text = "관리",
+                            onClick = { showSourceExclusion = true }
+                        )
+                    }
+
+                    // 알림으로 들어온 내역을 처음 담을 공간
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "새 알림 내역을 담을 공간",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "가맹점별로 저장했던 공간이 있으면 그 공간이 먼저 적용됩니다.",
+                        fontSize = 12.sp,
+                        color = IosSystemGray
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    IosSegmentedControl(
+                        items = listOf<String?>(null) + uiState.spaces.map { it.id },
+                        selectedItem = uiState.settings.defaultIngestSpaceId
+                            ?.takeIf { id -> uiState.spaces.any { it.id == id } },
+                        onItemSelected = { onUpdateDefaultIngestSpace(it) },
+                        labelProvider = { id ->
+                            // 세그먼트 3칸에 들어가도록 짧은 이름(공통 생활비 / 내 용돈) 사용
+                            if (id == null) "보던 공간" else uiState.spaces.firstOrNull { it.id == id }?.type?.displayName.orEmpty()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     // [Beta] KB 빠른조회 백그라운드 자동 불러오기 (계좌 등록 후 사용 가능)
                     Spacer(modifier = Modifier.height(12.dp))
                     IosHairlineDivider()
@@ -884,6 +943,19 @@ fun SettingsAndCategoryScreen(
                     Text("취소", maxLines = 1, softWrap = false)
                 }
             }
+        )
+    }
+
+    if (showSourceExclusion) {
+        NotificationSourceExclusionDialog(
+            seenSources = uiState.settings.seenSources,
+            excludedIds = uiState.settings.excludedSourceIds,
+            autoFilterDuplicates = uiState.settings.autoFilterDuplicateAlerts,
+            onConfirm = { ids, autoFilter ->
+                onUpdateExcludedSources(ids, autoFilter)
+                showSourceExclusion = false
+            },
+            onDismiss = { showSourceExclusion = false }
         )
     }
 

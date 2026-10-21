@@ -10,6 +10,40 @@
         android:name="android.hardware.telephony"
         android:required="false" />
 
+    <!-- 알림을 보낸 금융 앱의 실제 이름(앱별 알림 제외 목록)을 읽기 위한 패키지 조회 범위 (Android 11+) -->
+    <!-- FinancialInstitutions.kt의 앱 패키지와 같게 유지 -->
+    <queries>
+        <package android:name="com.kbstar.kbbank" />
+        <package android:name="com.shinhan.sbanking" />
+        <package android:name="com.wooribank.smart.npib" />
+        <package android:name="com.hanabank.oqf" />
+        <package android:name="com.kebhana.hanapush" />
+        <package android:name="com.scbank.ma30" />
+        <package android:name="kr.co.citibank.citimobile" />
+        <package android:name="nh.smart.banking" />
+        <package android:name="com.nonghyup.nhallonebank" />
+        <package android:name="com.ibk.android.ionebank" />
+        <package android:name="co.kr.kdb.android.smartkdb" />
+        <package android:name="com.suhyup.psmb" />
+        <package android:name="com.suhyup.pesmb" />
+        <package android:name="com.kakaobank.channel" />
+        <package android:name="com.kbankwith.smartbank" />
+        <package android:name="viva.republica.toss" />
+        <package android:name="kr.co.busanbank.mbp" />
+        <package android:name="com.knb.psb" />
+        <package android:name="kr.co.dgb.dgbm" />
+        <package android:name="com.kjbank.asb.pbanking" />
+        <package android:name="kr.co.jbbank.privatebank" />
+        <package android:name="com.jejubank.smartnew" />
+        <package android:name="nh.smart.nhcok" />
+        <package android:name="com.smg.spbs" />
+        <package android:name="kr.co.cu.onbank" />
+        <package android:name="com.epost.psf.sdsi" />
+        <package android:name="com.kbcard.cxh.appcard" />
+        <package android:name="com.shcard.smartpay" />
+        <package android:name="com.hyundaicard.appcard" />
+    </queries>
+
     <application
         android:name=".HouseholdBookApp"
         android:allowBackup="true"

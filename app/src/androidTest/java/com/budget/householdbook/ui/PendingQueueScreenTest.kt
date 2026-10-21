@@ -94,7 +94,8 @@ class PendingQueueScreenTest {
                     onApplyMatchedCancel = {},
                     onLoadCancelCandidates = { _, onLoaded -> onLoaded(candidates) },
                     onLinkCancelTarget = { pendingId, txId -> calls.link = pendingId to txId },
-                    onDismissItem = { _, _ -> },
+                    onDismissItem = { _, _, _ -> },
+                    onUpdateClassification = { _, _, _, _, _ -> },
                     onApproveAll = { calls.approveAll++ },
                     onSimulateNotification = {},
                     onRunKbQuickInquiryBeta = {}

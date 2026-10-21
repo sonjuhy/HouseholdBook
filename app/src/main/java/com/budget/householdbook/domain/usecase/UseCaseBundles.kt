@@ -20,7 +20,8 @@ data class PendingQueueUseCases(
     val getManualCancelCandidates: GetManualCancelCandidatesUseCase,
     val linkCancelToTransaction: LinkCancelToTransactionUseCase,
     val dismiss: DismissPendingItemUseCase,
-    val approveAll: ApproveAllPendingItemsUseCase
+    val approveAll: ApproveAllPendingItemsUseCase,
+    val updateClassification: UpdatePendingClassificationUseCase
 )
 
 /** 확정 거래 (직접 입력 / 취소 / 삭제) */
@@ -60,5 +61,8 @@ data class SettingsUseCases(
     val updateThemeMode: UpdateThemeModeUseCase,
     val deleteIgnoredKeyword: DeleteIgnoredKeywordUseCase,
     val insertSampleData: InsertSampleDataUseCase,
-    val updateEnabledInstitutions: UpdateEnabledInstitutionsUseCase
+    val updateEnabledInstitutions: UpdateEnabledInstitutionsUseCase,
+    val updateExcludedSources: UpdateExcludedSourcesUseCase,
+    val updateAutoFilterDuplicates: UpdateAutoFilterDuplicatesUseCase,
+    val updateDefaultIngestSpace: UpdateDefaultIngestSpaceUseCase
 )

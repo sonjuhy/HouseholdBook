@@ -61,7 +61,10 @@ fun HouseholdNavHost(
                 onApplyMatchedCancel = { viewModel.applyMatchedCancel(it) },
                 onLoadCancelCandidates = { id, onLoaded -> viewModel.loadManualCancelCandidates(id, onLoaded) },
                 onLinkCancelTarget = { id, txId -> viewModel.linkCancelToTransaction(id, txId) },
-                onDismissItem = { id, keyword -> viewModel.dismissPendingItem(id, keyword) },
+                onDismissItem = { id, keyword, excludeSourceId -> viewModel.dismissPendingItem(id, keyword, excludeSourceId) },
+                onUpdateClassification = { id, spaceId, type, catId, subId ->
+                    viewModel.updatePendingClassification(id, spaceId, type, catId, subId)
+                },
                 onApproveAll = { viewModel.approveAllPending() },
                 onSimulateNotification = { viewModel.simulateFinancialNotification(it) },
                 onRunKbQuickInquiryBeta = { viewModel.runKbQuickInquiryBeta() }
@@ -123,7 +126,9 @@ fun HouseholdNavHost(
                 },
                 onRemoveIgnoredKeyword = { viewModel.removeIgnoredKeyword(it) },
                 onInsertSampleData = { viewModel.insertSampleData() },
-                onUpdateEnabledInstitutions = { viewModel.updateEnabledInstitutions(it) }
+                onUpdateEnabledInstitutions = { viewModel.updateEnabledInstitutions(it) },
+                onUpdateExcludedSources = { ids, autoFilter -> viewModel.updateExcludedSources(ids, autoFilter) },
+                onUpdateDefaultIngestSpace = { viewModel.updateDefaultIngestSpace(it) }
             )
         }
     }

@@ -11,6 +11,7 @@ import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.data.sync.GoogleLoginResult
 import com.budget.householdbook.domain.model.QuickInquiryCredentials
+import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.MealPriceConfig
 import com.budget.householdbook.domain.model.QueueStatus
@@ -57,6 +58,10 @@ interface PendingQueueRepository {
     fun observePendingCount(): Flow<Int>
     suspend fun getById(id: Long): PendingTransactionEntity?
     suspend fun getRecentPendingSince(sinceMillis: Long): List<PendingTransactionEntity>
+    /** 상태와 관계없이 최근 들어온 대기 항목 (다른 앱에서 온 같은 알림 중복 확인용) */
+    suspend fun getRecentSince(sinceMillis: Long): List<PendingTransactionEntity>
+    /** 검수 중인 항목의 공간·유형·분류 변경 (대기 상태일 때만) */
+    suspend fun updateClassification(id: Long, spaceId: String, type: TransactionType, categoryId: Long?, subCategoryId: Long?)
     /** dedupHash가 겹치면 무시하고 0 이하를 반환 */
     suspend fun insertIgnoreDuplicate(item: PendingTransactionEntity): Long
     suspend fun updateStatus(id: Long, status: QueueStatus)
@@ -112,6 +117,11 @@ interface SettingsRepository {
     suspend fun updateMealPriceConfig(config: MealPriceConfig)
     suspend fun setKbAutoInquiry(enabled: Boolean, intervalHours: Int)
     suspend fun setEnabledInstitutions(ids: Set<String>)
+    suspend fun setExcludedSources(ids: Set<String>)
+    /** 금융 알림을 보낸 앱(또는 문자)을 '앱별 알림 제외' 목록에 남김 */
+    suspend fun recordSeenSource(sourceId: String, label: String)
+    suspend fun setAutoFilterDuplicateAlerts(enabled: Boolean)
+    suspend fun setDefaultIngestSpaceId(spaceId: String?)
     suspend fun markSeedCompleted()
 }
 

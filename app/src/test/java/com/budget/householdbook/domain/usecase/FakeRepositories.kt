@@ -64,6 +64,18 @@ class FakeSettingsRepository(initial: AppUserSettings = AppUserSettings()) : Set
     override suspend fun setKbAutoInquiry(enabled: Boolean, intervalHours: Int) {
         state.value = state.value.copy(kbAutoInquiryEnabled = enabled, kbAutoInquiryIntervalHours = intervalHours)
     }
+    override suspend fun setExcludedSources(ids: Set<String>) {
+        state.value = state.value.copy(excludedSourceIds = ids)
+    }
+    override suspend fun recordSeenSource(sourceId: String, label: String) {
+        state.value = state.value.copy(seenSources = state.value.seenSources + (sourceId to label))
+    }
+    override suspend fun setAutoFilterDuplicateAlerts(enabled: Boolean) {
+        state.value = state.value.copy(autoFilterDuplicateAlerts = enabled)
+    }
+    override suspend fun setDefaultIngestSpaceId(spaceId: String?) {
+        state.value = state.value.copy(defaultIngestSpaceId = spaceId)
+    }
     override suspend fun setEnabledInstitutions(ids: Set<String>) {
         state.value = state.value.copy(enabledInstitutionIds = ids)
     }
@@ -118,6 +130,13 @@ class FakePendingQueueRepository(items: List<PendingTransactionEntity> = emptyLi
     override suspend fun getById(id: Long) = state.value.firstOrNull { it.id == id }
     override suspend fun getRecentPendingSince(sinceMillis: Long) =
         state.value.filter { it.status == QueueStatus.PENDING && it.occurredAt >= sinceMillis }.sortedByDescending { it.occurredAt }
+    override suspend fun getRecentSince(sinceMillis: Long) =
+        state.value.filter { it.occurredAt >= sinceMillis }.sortedByDescending { it.occurredAt }
+    override suspend fun updateClassification(id: Long, spaceId: String, type: TransactionType, categoryId: Long?, subCategoryId: Long?) =
+        update(id) {
+            if (it.status != QueueStatus.PENDING) it
+            else it.copy(suggestedSpaceId = spaceId, parsedType = type, suggestedCategoryId = categoryId, suggestedSubCategoryId = subCategoryId)
+        }
     override suspend fun insertIgnoreDuplicate(item: PendingTransactionEntity): Long {
         if (state.value.any { it.dedupHash == item.dedupHash }) return -1L
         val id = nextId++
@@ -215,8 +234,11 @@ class FakeAutomationRuleRepository(
         ignoredState.value = ignoredState.value.filter { it.id != id }
     }
     override suspend fun getAllMerchantRules() = merchantRuleState.value
+    private var nextRuleId = (merchantRuleState.value.maxOfOrNull { it.id } ?: 0L) + 1
+    // Room의 REPLACE처럼 같은 키워드는 지우고 새 ID로 다시 넣음 (최근 학습일수록 ID가 큼)
     override suspend fun upsertMerchantRule(rule: MerchantCategoryRuleEntity) {
-        merchantRuleState.value = merchantRuleState.value.filter { it.merchantKeyword != rule.merchantKeyword } + rule
+        merchantRuleState.value = merchantRuleState.value.filter { it.merchantKeyword != rule.merchantKeyword } +
+            rule.copy(id = nextRuleId++)
     }
 }
 

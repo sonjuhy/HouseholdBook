@@ -1,5 +1,6 @@
 package com.budget.householdbook.domain.usecase
 
+import com.budget.householdbook.domain.model.NotificationSources
 import com.budget.householdbook.data.ingestion.parser.CancelMatcher
 import com.budget.householdbook.data.ingestion.parser.FinancialParserEngine
 import com.budget.householdbook.data.ingestion.parser.ParsedNotificationDraft
@@ -46,13 +47,26 @@ class EnqueueParsedDraftUseCase(
 
         // 2. 가맹점 자동 분류 규칙 탐색
         val settings = settingsRepository.userSettingsFlow.first()
-        val merchantRules = ruleRepository.getAllMerchantRules()
-        val matchedRule = merchantRules.firstOrNull { rule ->
-            draft.merchant.contains(rule.merchantKeyword, ignoreCase = true) ||
-                draft.rawText.contains(rule.merchantKeyword, ignoreCase = true)
-        }
 
-        val targetSpaceId = matchedRule?.targetSpaceId ?: settings.currentSpaceId
+        // 같은 결제를 카드 앱·은행 앱·문자가 각각 알려주는 경우 처음 들어온 것만 남김
+        if (settings.autoFilterDuplicateAlerts) {
+            val recent = pendingQueueRepository.getRecentSince(draft.occurredAt - DUPLICATE_ALERT_WINDOW_MILLIS)
+            if (recent.any { DuplicateAlertDetector.isSamePayment(it, draft) }) return null
+        }
+        val merchantRules = ruleRepository.getAllMerchantRules()
+        // 여러 규칙이 맞으면 가장 최근에 학습한 규칙(사용자가 마지막으로 고른 공간·분류)을 우선
+        // (처음 실행 때 만든 기본 규칙이 나중의 선택을 계속 덮어쓰지 않도록)
+        val matchedRule = merchantRules
+            .filter { rule ->
+                draft.merchant.contains(rule.merchantKeyword, ignoreCase = true) ||
+                    draft.rawText.contains(rule.merchantKeyword, ignoreCase = true)
+            }
+            .maxByOrNull { it.id }
+
+        // 공간 우선순위: 가맹점 학습 규칙 > 설정의 '알림 내역 기본 저장 공간' > 마지막으로 보던 공간
+        val targetSpaceId = matchedRule?.targetSpaceId
+            ?: settings.defaultIngestSpaceId
+            ?: settings.currentSpaceId
         val spaceCategories = categoryRepository.getCategoriesBySpaceOnce(targetSpaceId)
         val defaultParentCategory = spaceCategories.firstOrNull {
             it.parentId == null && (it.transactionType == draft.transactionType || draft.transactionType == TransactionType.TRANSFER)
@@ -147,6 +161,17 @@ class IngestRawNotificationUseCase(
         sourcePackage: String? = null
     ): Boolean {
         val settings = settingsRepository.userSettingsFlow.first()
+
+        // 앱별 알림 제외: 출처는 앱 패키지, 문자는 하나의 출처(sms)로 다룸
+        val sourceId = when {
+            sourcePackage != null -> sourcePackage
+            sourceType == IngestionSource.SMS -> NotificationSources.SMS_SOURCE_ID
+            else -> "app:$sourceAppName" // 패키지를 모르는 앱 알림 (예: 예시 알림)
+        }
+        val sourceLabel = if (sourceId == NotificationSources.SMS_SOURCE_ID) NotificationSources.SMS_SOURCE_LABEL else sourceAppName
+        settingsRepository.recordSeenSource(sourceId, sourceLabel)
+        if (sourceId in settings.excludedSourceIds) return false
+
         val draft = FinancialParserEngine.parse(
             sourceType = sourceType,
             sourceAppName = sourceAppName,
@@ -252,4 +277,35 @@ class EnsureBackgroundWorkUseCase(
             intervalHours = settings.kbAutoInquiryIntervalHours
         )
     }
+}
+
+/** 다른 출처에서 온 같은 결제 알림으로 볼 시간 범위 */
+private const val DUPLICATE_ALERT_WINDOW_MILLIS = 3L * 60 * 1000
+
+/**
+ * 같은 결제가 여러 앱(카드 앱·은행 앱·문자)에서 각각 알림으로 들어온 경우를 찾는 규칙
+ * - 같은 금액 · 같은 방향(지출/수입, 결제/취소) · 3분 이내 · 서로 다른 출처
+ * - 가맹점명이 비슷하거나, 한쪽이 가맹점을 알 수 없는 알림(예: "OO은행 내역")일 때만 중복으로 봄
+ * - 같은 출처에서 연달아 온 같은 금액은 실제로 두 번 결제한 것일 수 있어 중복으로 보지 않음
+ */
+object DuplicateAlertDetector {
+
+    fun isSamePayment(existing: PendingTransactionEntity, draft: ParsedNotificationDraft): Boolean {
+        if (existing.parsedAmount != draft.amount) return false
+        if (existing.sourceAppName == draft.sourceAppName) return false
+        if (existing.occurredAt < draft.occurredAt - DUPLICATE_ALERT_WINDOW_MILLIS) return false
+
+        val existingIsCancel = existing.queueKind == QueueKind.CANCEL_MATCHED || existing.queueKind == QueueKind.CANCEL_UNMATCHED
+        if (existingIsCancel != draft.isCancelAlert) return false
+        // 내 계좌 이체 쌍은 출금·입금이 각각 들어오는 정상 흐름이라 비교하지 않음
+        if (existing.queueKind == QueueKind.TRANSFER_PAIR) return false
+        if (!existingIsCancel && existing.parsedType != draft.transactionType) return false
+
+        return isGenericMerchant(existing.parsedMerchant) ||
+            isGenericMerchant(draft.merchant) ||
+            CancelMatcher.isSameMerchant(existing.parsedMerchant, draft.merchant)
+    }
+
+    /** 파서가 가맹점을 못 찾았을 때 붙이는 이름 ("OO 내역") */
+    private fun isGenericMerchant(merchant: String) = merchant.endsWith(" 내역")
 }

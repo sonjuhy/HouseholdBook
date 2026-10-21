@@ -14,6 +14,7 @@ import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.QueueStatus
+import com.budget.householdbook.domain.model.TransactionType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -74,6 +75,18 @@ interface PendingTransactionDao {
 
     @Query("SELECT * FROM pending_transactions WHERE status = 'PENDING' AND occurredAt >= :sinceMillis ORDER BY occurredAt DESC")
     suspend fun getRecentPendingSince(sinceMillis: Long): List<PendingTransactionEntity>
+
+    @Query("SELECT * FROM pending_transactions WHERE occurredAt >= :sinceMillis ORDER BY occurredAt DESC")
+    suspend fun getRecentSince(sinceMillis: Long): List<PendingTransactionEntity>
+
+    @Query(
+        """
+        UPDATE pending_transactions
+        SET suggestedSpaceId = :spaceId, parsedType = :type, suggestedCategoryId = :categoryId, suggestedSubCategoryId = :subCategoryId
+        WHERE id = :id AND status = 'PENDING'
+        """
+    )
+    suspend fun updateClassification(id: Long, spaceId: String, type: TransactionType, categoryId: Long?, subCategoryId: Long?)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIgnoreDuplicate(item: PendingTransactionEntity): Long

@@ -17,6 +17,7 @@ import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.QueueStatus
+import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.repository.AutomationRuleRepository
 import com.budget.householdbook.domain.repository.CategoryRepository
 import com.budget.householdbook.domain.repository.LedgerSpaceRepository
@@ -58,6 +59,14 @@ class RoomPendingQueueRepository(private val dao: PendingTransactionDao) : Pendi
     override suspend fun getById(id: Long): PendingTransactionEntity? = dao.getById(id)
     override suspend fun getRecentPendingSince(sinceMillis: Long): List<PendingTransactionEntity> =
         dao.getRecentPendingSince(sinceMillis)
+    override suspend fun getRecentSince(sinceMillis: Long): List<PendingTransactionEntity> = dao.getRecentSince(sinceMillis)
+    override suspend fun updateClassification(
+        id: Long,
+        spaceId: String,
+        type: TransactionType,
+        categoryId: Long?,
+        subCategoryId: Long?
+    ) = dao.updateClassification(id, spaceId, type, categoryId, subCategoryId)
     override suspend fun insertIgnoreDuplicate(item: PendingTransactionEntity): Long = dao.insertIgnoreDuplicate(item)
     override suspend fun updateStatus(id: Long, status: QueueStatus) = dao.updateStatus(id, status)
     override suspend fun markCancelLinkedAndApproved(id: Long, transactionId: Long) =

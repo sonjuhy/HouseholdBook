@@ -68,6 +68,9 @@ import com.budget.householdbook.data.ingestion.notification.FinancialNotificatio
 import com.budget.householdbook.data.local.entity.CategoryEntity
 import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
+import com.budget.householdbook.domain.model.CategoryDefaults
+import com.budget.householdbook.domain.model.IngestionSource
+import com.budget.householdbook.domain.model.NotificationSources
 import com.budget.householdbook.domain.model.QueueKind
 import com.budget.householdbook.domain.model.SplitApprovalItem
 import com.budget.householdbook.domain.model.TransactionType
@@ -96,7 +99,14 @@ fun PendingQueueScreen(
     onApplyMatchedCancel: (pendingId: Long) -> Unit,
     onLoadCancelCandidates: (pendingId: Long, onLoaded: (List<TransactionEntity>) -> Unit) -> Unit,
     onLinkCancelTarget: (pendingId: Long, transactionId: Long) -> Unit,
-    onDismissItem: (pendingId: Long, ignoreKeyword: String?) -> Unit,
+    onDismissItem: (pendingId: Long, ignoreKeyword: String?, excludeSourceId: String?) -> Unit,
+    onUpdateClassification: (
+        pendingId: Long,
+        spaceId: String,
+        type: TransactionType,
+        categoryId: Long?,
+        subCategoryId: Long?
+    ) -> Unit,
     onApproveAll: () -> Unit,
     onSimulateNotification: (Int) -> Unit,
     onRunKbQuickInquiryBeta: () -> Unit
@@ -242,7 +252,10 @@ fun PendingQueueScreen(
                     onOpenSplit = { splittingItem = item },
                     onApplyMatchedCancel = { onApplyMatchedCancel(item.id) },
                     onOpenCancelLink = { linkingCancelItem = item },
-                    onOpenDismiss = { dismissingItem = item }
+                    onOpenDismiss = { dismissingItem = item },
+                    onUpdateClassification = { spaceId, type, catId, subId ->
+                        onUpdateClassification(item.id, spaceId, type, catId, subId)
+                    }
                 )
             }
         }
@@ -314,13 +327,27 @@ fun PendingQueueScreen(
         var selectedType by remember(item) { mutableStateOf(item.parsedType) }
 
         val spaceCats = uiState.allCategories.filter { it.spaceId == selectedSpaceId }
-        val parentCats = spaceCats.filter { it.parentId == null }
-        var selectedCatId by remember(selectedSpaceId) {
-            mutableLongStateOf(item.suggestedCategoryId ?: parentCats.firstOrNull()?.id ?: 1L)
+        val initialCategory = remember(item) {
+            CategoryDefaults.pick(
+                spaceCategories = uiState.allCategories.filter { it.spaceId == item.suggestedSpaceId },
+                type = item.parsedType,
+                preferredCategoryId = item.suggestedCategoryId,
+                preferredSubCategoryId = item.suggestedSubCategoryId
+            )
         }
-        val subCats = spaceCats.filter { it.parentId == selectedCatId }
-        var selectedSubId by remember(selectedCatId) {
-            mutableStateOf(item.suggestedSubCategoryId ?: subCats.firstOrNull()?.id)
+        var selectedCatId by remember(item) { mutableLongStateOf(initialCategory.first ?: 1L) }
+        var selectedSubId by remember(item) { mutableStateOf(initialCategory.second) }
+        // 공간을 바꾸면 그 공간의 카테고리로 다시 맞춤
+        fun selectSpace(spaceId: String) {
+            selectedSpaceId = spaceId
+            val (catId, subId) = CategoryDefaults.pick(
+                spaceCategories = uiState.allCategories.filter { it.spaceId == spaceId },
+                type = selectedType,
+                preferredCategoryId = null,
+                preferredSubCategoryId = null
+            )
+            selectedCatId = catId ?: 1L
+            selectedSubId = subId
         }
 
         AlertDialog(
@@ -338,7 +365,7 @@ fun PendingQueueScreen(
                             IosPillChip(
                                 label = space.name,
                                 selected = selectedSpaceId == space.id,
-                                onClick = { selectedSpaceId = space.id }
+                                onClick = { selectSpace(space.id) }
                             )
                         }
                     }
@@ -547,6 +574,14 @@ fun PendingQueueScreen(
     dismissingItem?.let { item ->
         var blockFutureKeyword by remember(item) { mutableStateOf(false) }
         var keywordText by remember(item) { mutableStateOf(item.parsedMerchant) }
+        var excludeSource by remember(item) { mutableStateOf(false) }
+        // 이 항목을 보낸 출처(앱 또는 문자): 같은 결제 알림이 여러 앱에서 올 때 한쪽을 끌 수 있도록
+        val sourceId = if (item.sourceType == IngestionSource.SMS) {
+            NotificationSources.SMS_SOURCE_ID
+        } else {
+            uiState.settings.seenSources.entries.firstOrNull { it.value == item.sourceAppName }?.key
+        }
+        val sourceLabel = sourceId?.let { uiState.settings.seenSources[it] ?: item.sourceAppName }
 
         AlertDialog(
             onDismissRequest = { dismissingItem = null },
@@ -573,6 +608,18 @@ fun PendingQueueScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                    if (sourceId != null && sourceLabel != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = excludeSource,
+                                onCheckedChange = { excludeSource = it }
+                            )
+                            Text(
+                                text = "앞으로 '$sourceLabel' 알림은 읽지 않기\n(같은 결제가 다른 앱에서도 올 때)",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -580,7 +627,8 @@ fun PendingQueueScreen(
                     onClick = {
                         onDismissItem(
                             item.id,
-                            if (blockFutureKeyword) keywordText else null
+                            if (blockFutureKeyword) keywordText else null,
+                            if (excludeSource) sourceId else null
                         )
                         dismissingItem = null
                     }
@@ -607,24 +655,20 @@ private fun PendingQueueItemCard(
     onOpenSplit: () -> Unit,
     onApplyMatchedCancel: () -> Unit,
     onOpenCancelLink: () -> Unit,
-    onOpenDismiss: () -> Unit
+    onOpenDismiss: () -> Unit,
+    onUpdateClassification: (spaceId: String, type: TransactionType, categoryId: Long?, subCategoryId: Long?) -> Unit
 ) {
-    var selectedSpaceId by remember(item.id, item.suggestedSpaceId) {
-        mutableStateOf(item.suggestedSpaceId)
-    }
-    var selectedType by remember(item.id, item.parsedType) {
-        mutableStateOf(item.parsedType)
-    }
-
+    // 공간·유형·분류는 대기 항목(DB)에 저장된 값을 그대로 보여주고, 바꾸면 즉시 저장
+    // → 일괄 승인·수정·분할·스크롤 후에도 고른 값이 유지됨
+    val selectedSpaceId = item.suggestedSpaceId
+    val selectedType = item.parsedType
     val spaceCats: List<CategoryEntity> = uiState.allCategories.filter { it.spaceId == selectedSpaceId }
-    val parentCats = spaceCats.filter { it.parentId == null }
-    var selectedCatId by remember(item.id, selectedSpaceId) {
-        mutableLongStateOf(item.suggestedCategoryId ?: parentCats.firstOrNull()?.id ?: 1L)
-    }
-    val subCats = spaceCats.filter { it.parentId == selectedCatId }
-    var selectedSubId by remember(item.id, selectedCatId) {
-        mutableStateOf(item.suggestedSubCategoryId ?: subCats.firstOrNull()?.id)
-    }
+    val (selectedCatId, selectedSubId) = CategoryDefaults.pick(
+        spaceCategories = spaceCats,
+        type = selectedType,
+        preferredCategoryId = item.suggestedCategoryId,
+        preferredSubCategoryId = item.suggestedSubCategoryId
+    )
 
     val badgeColor = when (item.queueKind) {
         QueueKind.CANCEL_MATCHED, QueueKind.CANCEL_UNMATCHED -> ExpenseCoral
@@ -778,18 +822,20 @@ private fun PendingQueueItemCard(
                         IosPillChip(
                             label = space.name,
                             selected = selectedSpaceId == space.id,
-                            onClick = { selectedSpaceId = space.id }
+                            // 공간을 바꾸면 카테고리는 새 공간 기준으로 다시 고름 (이전 공간 카테고리가 남지 않도록)
+                            onClick = { onUpdateClassification(space.id, selectedType, null, null) }
                         )
                     }
                     IosPillChip(
                         label = "이체/집계제외",
                         selected = selectedType == TransactionType.TRANSFER,
                         onClick = {
-                            selectedType = if (selectedType == TransactionType.TRANSFER) {
+                            val nextType = if (selectedType == TransactionType.TRANSFER) {
                                 TransactionType.EXPENSE
                             } else {
                                 TransactionType.TRANSFER
                             }
+                            onUpdateClassification(selectedSpaceId, nextType, selectedCatId, selectedSubId)
                         },
                         activeColor = TransferSlate
                     )
@@ -798,11 +844,10 @@ private fun PendingQueueItemCard(
                 // 2) 방안 1: 1줄 브레드크럼 카테고리 셀렉터 바 (클릭 시 2-Pane iOS 바텀시트 오픈)
                 IosCategorySelectorField(
                     spaceCategories = spaceCats,
-                    selectedCategoryId = selectedCatId,
+                    selectedCategoryId = selectedCatId ?: 1L,
                     selectedSubCategoryId = selectedSubId,
                     onCategorySelected = { catId, subId ->
-                        selectedCatId = catId
-                        selectedSubId = subId
+                        onUpdateClassification(selectedSpaceId, selectedType, catId, subId)
                     },
                     label = "분류"
                 )
@@ -838,7 +883,7 @@ private fun PendingQueueItemCard(
                 IosFilledButton(
                     text = "저장",
                     onClick = {
-                        onQuickApprove(selectedSpaceId, selectedType, selectedCatId, selectedSubId)
+                        onQuickApprove(selectedSpaceId, selectedType, selectedCatId ?: 1L, selectedSubId)
                     },
                     modifier = Modifier.weight(1.1f),
                     icon = Icons.Default.Check

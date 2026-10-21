@@ -240,14 +240,55 @@ class MainViewModel(
         }
     }
 
-    fun dismissPendingItem(pendingId: Long, ignoreKeyword: String? = null) {
+    /**
+     * @param excludeSourceId 함께 제외할 알림 출처(앱 패키지 또는 sms). 같은 결제 알림이 여러 앱에서 올 때 사용
+     */
+    fun dismissPendingItem(pendingId: Long, ignoreKeyword: String? = null, excludeSourceId: String? = null) {
         viewModelScope.launch {
             queue.dismiss(pendingId, ignoreKeyword)
-            _snackbarMessage.value = if (ignoreKeyword.isNullOrBlank()) {
-                "확인 대기 목록에서 삭제되었습니다."
-            } else {
-                "삭제되었으며, 앞으로 '$ignoreKeyword' 단어가 들어간 알림은 자동으로 건너뜁니다."
+            val excludedLabel = excludeSourceId?.let { id ->
+                val current = uiState.value.settings
+                settings.updateExcludedSources(current.excludedSourceIds + id)
+                current.seenSources[id] ?: id
             }
+            _snackbarMessage.value = when {
+                excludedLabel != null -> "삭제되었으며, 앞으로 '$excludedLabel' 알림은 읽지 않습니다."
+                ignoreKeyword.isNullOrBlank() -> "확인 대기 목록에서 삭제되었습니다."
+                else -> "삭제되었으며, 앞으로 '$ignoreKeyword' 단어가 들어간 알림은 자동으로 건너뜁니다."
+            }
+        }
+    }
+
+    /** 검수 카드에서 공간·유형·분류를 바꾸면 대기 항목에 바로 저장 */
+    fun updatePendingClassification(
+        pendingId: Long,
+        spaceId: String,
+        type: TransactionType,
+        categoryId: Long?,
+        subCategoryId: Long?
+    ) {
+        viewModelScope.launch {
+            queue.updateClassification(pendingId, spaceId, type, categoryId, subCategoryId)
+        }
+    }
+
+    fun updateExcludedSources(ids: Set<String>, autoFilterDuplicates: Boolean) {
+        viewModelScope.launch {
+            settings.updateExcludedSources(ids)
+            settings.updateAutoFilterDuplicates(autoFilterDuplicates)
+            _snackbarMessage.value = if (ids.isEmpty()) {
+                "모든 금융 앱 알림을 읽습니다."
+            } else {
+                "${ids.size}개 출처의 알림은 앞으로 읽지 않습니다."
+            }
+        }
+    }
+
+    fun updateDefaultIngestSpace(spaceId: String?) {
+        viewModelScope.launch {
+            settings.updateDefaultIngestSpace(spaceId)
+            val name = spaceId?.let { id -> uiState.value.spaces.firstOrNull { it.id == id }?.name }
+            _snackbarMessage.value = "새 알림 내역은 ${name ?: "마지막으로 보던 공간"}에 먼저 담깁니다."
         }
     }
 

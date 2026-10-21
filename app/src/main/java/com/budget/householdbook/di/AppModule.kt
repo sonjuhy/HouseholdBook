@@ -46,6 +46,10 @@ import com.budget.householdbook.domain.usecase.UpdateEnabledInstitutionsUseCase
 import com.budget.householdbook.domain.usecase.DeleteMealLogUseCase
 import com.budget.householdbook.domain.usecase.DeleteTransactionUseCase
 import com.budget.householdbook.domain.usecase.DismissPendingItemUseCase
+import com.budget.householdbook.domain.usecase.UpdateAutoFilterDuplicatesUseCase
+import com.budget.householdbook.domain.usecase.UpdateDefaultIngestSpaceUseCase
+import com.budget.householdbook.domain.usecase.UpdateExcludedSourcesUseCase
+import com.budget.householdbook.domain.usecase.UpdatePendingClassificationUseCase
 import com.budget.householdbook.domain.usecase.EnqueueParsedDraftUseCase
 import com.budget.householdbook.domain.usecase.EnsureBackgroundWorkUseCase
 import com.budget.householdbook.domain.usecase.GetManualCancelCandidatesUseCase
@@ -162,6 +166,7 @@ val useCaseModule = module {
     factoryOf(::GetManualCancelCandidatesUseCase)
     factoryOf(::LinkCancelToTransactionUseCase)
     factoryOf(::DismissPendingItemUseCase)
+    factoryOf(::UpdatePendingClassificationUseCase)
     factoryOf(::ApproveAllPendingItemsUseCase)
 
     // 거래 · 카테고리 · 예산
@@ -191,6 +196,9 @@ val useCaseModule = module {
     factoryOf(::UpdateThemeModeUseCase)
     factoryOf(::DeleteIgnoredKeywordUseCase)
     factoryOf(::UpdateEnabledInstitutionsUseCase)
+    factoryOf(::UpdateExcludedSourcesUseCase)
+    factoryOf(::UpdateAutoFilterDuplicatesUseCase)
+    factoryOf(::UpdateDefaultIngestSpaceUseCase)
 
     // ViewModel용 번들
     factoryOf(::IngestionUseCases)

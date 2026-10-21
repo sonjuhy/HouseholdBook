@@ -26,6 +26,14 @@ object CancelMatcher {
         return a.contains(b) || b.contains(a) || a.take(3) == b.take(3)
     }
 
+    /** 원문 가맹점명 두 개가 같은 곳으로 보이는지 (정규화 후 비교) */
+    fun isSameMerchant(a: String, b: String): Boolean {
+        val keyA = normalize(a)
+        val keyB = normalize(b)
+        if (keyA.length < MIN_KEY_LENGTH) return false
+        return isSimilarMerchant(keyA, keyB)
+    }
+
     /**
      * "(주)우아한형제들(배달의민족)" -> "우아한형제들배달의민족" 처럼 비교에 불필요한 기호/공백 제거
      */

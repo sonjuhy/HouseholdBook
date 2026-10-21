@@ -366,3 +366,12 @@
 - 금액(1원~100만 원)과 무엇을 아꼈는지(선택)를 입력. `+1천/+5천/+10천` 빠른 더하기, 집밥절약 탭의 메뉴 메모를 그대로 가져옴
 - `MealType.CUSTOM` + `RecordCustomMealSavingUseCase`: 기존 `meal_saving_logs`에 입력 금액으로 저장 → 이번 주기 합계·끼니 수·홈 화면 위젯에 함께 반영 (enum 이름 저장이라 DB 마이그레이션 없음). 원터치 버튼·위젯은 `MealType.quickTypes`만 사용
 - 검증: 단위 80건(직접 입력 2건 추가), 계측 23건(`CustomMealSavingDialogTest` 3건) 통과. 에뮬레이터에서 홈 → 직접 입력 8,500원 → 홈 합계·스낵바·집밥절약 기록 목록 확인 후 테스트 기록 삭제
+
+---
+
+## 22단계: 앱 아이콘 교체 (2026-10-22)
+- 사용자가 만든 이미지(반으로 나뉜 장부: 공용 파랑 | 개인 초록 + 흰 체크)로 앱 아이콘 교체
+- 적응형 아이콘: 배경 `#F1F0F5` 단색, 전경 `mipmap-*/ic_launcher_foreground.png`(이미지 오른쪽 아래 생성 도구 표시는 배경색으로 덮음). 원형 마스크에서도 장부 모서리가 잘리지 않도록 지름 68dp 안에 배치
+- 테마 아이콘(Android 13+)용 단색 레이어 `drawable/ic_launcher_monochrome.xml`: 장부 윤곽 + 왼쪽 제본선 + 체크
+- 레거시 `ic_launcher(_round).webp`도 같은 모양으로 교체, Play 스토어용 512×512 `app/src/main/ic_launcher-playstore.png` 추가
+- 확인: 에뮬레이터 홈 화면에서 새 아이콘 표시 (하단 오른쪽 칸의 파란 테두리는 런처의 '추천 앱' 표시)

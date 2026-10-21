@@ -87,7 +87,15 @@ enum class MealType(val displayName: String, val emoji: String, val defaultUnitP
     BREAKFAST("아침 집밥", "🌅", 6_000L),
     LUNCH("점심 집밥", "☀️", 10_000L),
     DINNER("저녁 집밥", "🌙", 15_000L),
-    SNACK("간식·홈카페", "☕", 6_000L)
+    SNACK("간식·홈카페", "☕", 6_000L),
+
+    /** 금액을 그때그때 직접 입력 (정해진 단가 없음, 메모에 무엇을 아꼈는지 기록) */
+    CUSTOM("직접 입력", "✏️", 0L);
+
+    companion object {
+        /** 원터치 +1 버튼으로 보여줄 끼니 (직접 입력은 별도 버튼) */
+        val quickTypes: List<MealType> = listOf(BREAKFAST, LUNCH, DINNER, SNACK)
+    }
 }
 
 /**
@@ -125,6 +133,7 @@ data class MealPriceConfig(
         MealType.LUNCH -> lunchPrice
         MealType.DINNER -> dinnerPrice
         MealType.SNACK -> snackPrice
+        MealType.CUSTOM -> 0L // 직접 입력은 기록할 때 금액을 받음
     }
 }
 

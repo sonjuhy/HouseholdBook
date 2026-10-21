@@ -45,6 +45,7 @@ fun HouseholdNavHost(
                 onNavigateToMealSaver = { navController.navigateToTopLevel(TopLevelDestination.MEAL_SAVER) },
                 onChangeMonthOffset = { viewModel.changeMonthOffset(it) },
                 onRecordQuickMeal = { viewModel.recordMeal(it) },
+                onRecordCustomMeal = { amount, label -> viewModel.recordCustomMealSaving(amount, label) },
                 onUpdateBudgetAndDay = { target, day ->
                     viewModel.updateSpaceBudgetAndStartDay(uiState.currentSpace.id, target, day)
                 }
@@ -90,6 +91,7 @@ fun HouseholdNavHost(
             MealSaverScreen(
                 uiState = uiState,
                 onRecordMeal = { mealType, memo -> viewModel.recordMeal(mealType, memo) },
+                onRecordCustomMeal = { amount, label -> viewModel.recordCustomMealSaving(amount, label) },
                 onDeleteMealLog = { viewModel.deleteMealLog(it) },
                 onUpdateMealPrices = { viewModel.updateMealPriceConfig(it) }
             )

@@ -172,6 +172,19 @@ class MainViewModel(
         }
     }
 
+    /** 아낀 금액 직접 입력 (현재 공간에 기록) */
+    fun recordCustomMealSaving(amount: Long, label: String) {
+        viewModelScope.launch {
+            runCatching {
+                meals.recordCustom(amount = amount, label = label, spaceId = uiState.value.currentSpace.id)
+            }.onSuccess {
+                _snackbarMessage.value = "${MealType.CUSTOM.emoji} ${CurrencyAndDateFormatter.formatWon(amount)} 아낀 금액을 기록했어요!"
+            }.onFailure {
+                _snackbarMessage.value = it.message ?: "아낀 금액을 기록하지 못했습니다."
+            }
+        }
+    }
+
     fun deleteMealLog(logId: Long) {
         viewModelScope.launch {
             meals.delete(logId)

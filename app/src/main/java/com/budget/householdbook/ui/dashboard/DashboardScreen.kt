@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.budget.householdbook.ui.mealsaver.CustomMealSavingDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,9 +74,11 @@ fun DashboardScreen(
     onNavigateToMealSaver: () -> Unit,
     onChangeMonthOffset: (Int) -> Unit,
     onRecordQuickMeal: (MealType) -> Unit,
+    onRecordCustomMeal: (amount: Long, label: String) -> Unit,
     onUpdateBudgetAndDay: (Long, Int) -> Unit
 ) {
     var showBudgetEditDialog by remember { mutableStateOf(false) }
+    var showCustomMealDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -356,7 +359,7 @@ fun DashboardScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    MealType.entries.chunked(2).forEach { pair ->
+                    MealType.quickTypes.chunked(2).forEach { pair ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -374,6 +377,12 @@ fun DashboardScreen(
                             }
                         }
                     }
+                    IosTintedButton(
+                        text = "${MealType.CUSTOM.emoji} 아낀 금액 직접 입력",
+                        onClick = { showCustomMealDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        tintColor = MealSaverAmber
+                    )
                 }
             }
         }
@@ -533,6 +542,16 @@ fun DashboardScreen(
                     Text("취소", maxLines = 1, softWrap = false)
                 }
             }
+        )
+    }
+
+    if (showCustomMealDialog) {
+        CustomMealSavingDialog(
+            onConfirm = { amount, label ->
+                onRecordCustomMeal(amount, label)
+                showCustomMealDialog = false
+            },
+            onDismiss = { showCustomMealDialog = false }
         )
     }
 }

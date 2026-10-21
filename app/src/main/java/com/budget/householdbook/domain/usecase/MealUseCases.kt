@@ -31,6 +31,7 @@ class RecordHomeCookedMealUseCase(
         memo: String = "",
         nowMillis: Long = System.currentTimeMillis()
     ): Long {
+        require(mealType != MealType.CUSTOM) { "직접 입력은 RecordCustomMealSavingUseCase로 금액과 함께 기록해야 합니다." }
         val settings = settingsRepository.userSettingsFlow.first()
         val unitPrice = settings.mealPriceConfig.priceFor(mealType)
         mealRepository.insertMealLog(
@@ -47,6 +48,47 @@ class RecordHomeCookedMealUseCase(
         )
         widgetRefresher.refresh()
         return unitPrice
+    }
+}
+
+/**
+ * 아낀 금액 직접 입력 기록 (정해진 끼니 단가 대신 그때그때 금액을 입력)
+ * - 예: 회사에 도시락 싸 감 8,500원, 커피 대신 텀블러 4,000원
+ */
+class RecordCustomMealSavingUseCase(
+    private val settingsRepository: SettingsRepository,
+    private val mealRepository: MealRepository,
+    private val widgetRefresher: MealWidgetRefresher
+) {
+    /**
+     * @param spaceId 기록할 공간 (null이면 현재 선택된 공간)
+     */
+    suspend operator fun invoke(
+        amount: Long,
+        label: String,
+        spaceId: String? = null,
+        nowMillis: Long = System.currentTimeMillis()
+    ) {
+        require(amount in 1..MAX_AMOUNT) { "아낀 금액은 1원부터 ${MAX_AMOUNT / 10_000}만 원까지 입력할 수 있어요." }
+        val settings = settingsRepository.userSettingsFlow.first()
+        mealRepository.insertMealLog(
+            MealSavingLogEntity(
+                spaceId = spaceId ?: settings.currentSpaceId,
+                dateIso = CurrencyAndDateFormatter.formatDateIso(nowMillis),
+                mealType = MealType.CUSTOM,
+                count = 1,
+                unitAmount = amount,
+                savedAmount = amount,
+                memo = label.trim().ifBlank { "${MealType.CUSTOM.displayName}으로 아낀 금액" },
+                occurredAt = nowMillis
+            )
+        )
+        widgetRefresher.refresh()
+    }
+
+    companion object {
+        /** 잘못 입력(0을 여러 개 더 누름 등)을 막기 위한 1건 상한 */
+        const val MAX_AMOUNT = 1_000_000L
     }
 }
 

@@ -155,6 +155,49 @@ class BudgetMealAndSyncUseCasesTest {
     }
 
     @Test
+    fun `아낀 금액 직접 입력은 입력한 금액과 내용으로 기록하고 위젯 합계에도 들어간다`() = runTest {
+        val settings = FakeSettingsRepository(AppUserSettings(currentSpaceId = shared))
+        val spaces = FakeLedgerSpaceRepository(listOf(sharedSpace))
+        val meals = FakeMealRepository()
+        val widget = CountingWidgetRefresher()
+        val recordCustom = RecordCustomMealSavingUseCase(settings, meals, widget)
+
+        recordCustom(amount = 8_500L, label = "  회사에 도시락 싸 감 ")
+        recordCustom(amount = 4_000L, label = "", spaceId = personal)
+
+        val (lunchBox, tumbler) = meals.state.value
+        assertEquals(MealType.CUSTOM, lunchBox.mealType)
+        assertEquals(8_500L, lunchBox.unitAmount)
+        assertEquals(8_500L, lunchBox.savedAmount)
+        assertEquals("회사에 도시락 싸 감", lunchBox.memo)
+        assertEquals(shared, lunchBox.spaceId)
+        assertEquals("직접 입력으로 아낀 금액", tumbler.memo)
+        assertEquals(personal, tumbler.spaceId)
+        assertEquals(2, widget.count)
+
+        RecordHomeCookedMealUseCase(settings, meals, widget)(MealType.LUNCH)
+        val summary = GetMealWidgetSummaryUseCase(settings, spaces, meals)()
+        assertEquals(2, summary.totalMealCount)
+        assertEquals(8_500L + MealType.LUNCH.defaultUnitPrice, summary.totalSavedAmount)
+    }
+
+    @Test
+    fun `직접 입력 금액이 0원이거나 너무 크면 기록하지 않고, 원터치 기록으로는 직접 입력을 쓸 수 없다`() = runTest {
+        val settings = FakeSettingsRepository()
+        val meals = FakeMealRepository()
+        val recordCustom = RecordCustomMealSavingUseCase(settings, meals, CountingWidgetRefresher())
+
+        assertTrue(runCatching { recordCustom(amount = 0L, label = "") }.isFailure)
+        assertTrue(runCatching { recordCustom(amount = RecordCustomMealSavingUseCase.MAX_AMOUNT + 1, label = "") }.isFailure)
+        assertTrue(runCatching { RecordHomeCookedMealUseCase(settings, meals, CountingWidgetRefresher())(MealType.CUSTOM) }.isFailure)
+        assertTrue(meals.state.value.isEmpty())
+
+        recordCustom(amount = RecordCustomMealSavingUseCase.MAX_AMOUNT, label = "")
+        assertEquals(1, meals.state.value.size)
+        assertEquals(listOf(MealType.BREAKFAST, MealType.LUNCH, MealType.DINNER, MealType.SNACK), MealType.quickTypes)
+    }
+
+    @Test
     fun `위젯 요약은 현재 공간의 이번 정산 주기 합계를 보여준다`() = runTest {
         val settings = FakeSettingsRepository(AppUserSettings(currentSpaceId = shared))
         val spaces = FakeLedgerSpaceRepository(listOf(sharedSpace))

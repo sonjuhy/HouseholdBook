@@ -50,11 +50,13 @@ import com.budget.householdbook.ui.theme.MealSaverAmber
 fun MealSaverScreen(
     uiState: HouseholdUiState,
     onRecordMeal: (MealType, String) -> Unit,
+    onRecordCustomMeal: (amount: Long, label: String) -> Unit,
     onDeleteMealLog: (Long) -> Unit,
     onUpdateMealPrices: (MealPriceConfig) -> Unit
 ) {
     var showPriceConfigDialog by remember { mutableStateOf(false) }
     var memoInput by remember { mutableStateOf("") }
+    var showCustomDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -134,7 +136,7 @@ fun MealSaverScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    MealType.entries.chunked(2).forEach { rowTypes ->
+                    MealType.quickTypes.chunked(2).forEach { rowTypes ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -159,6 +161,14 @@ fun MealSaverScreen(
                             }
                         }
                     }
+
+                    // 정해진 끼니 금액과 다를 때: 금액 직접 입력 (위 메모가 있으면 그대로 가져감)
+                    IosTintedButton(
+                        text = "${MealType.CUSTOM.emoji} 아낀 금액 직접 입력",
+                        onClick = { showCustomDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        tintColor = MealSaverAmber
+                    )
                 }
             }
         }
@@ -195,7 +205,11 @@ fun MealSaverScreen(
                                         .padding(end = 8.dp)
                                 ) {
                                     Text(
-                                        text = "${log.mealType.emoji} ${log.mealType.displayName} (${log.count}회)",
+                                        text = if (log.mealType == MealType.CUSTOM) {
+                                            "${log.mealType.emoji} ${log.mealType.displayName}"
+                                        } else {
+                                            "${log.mealType.emoji} ${log.mealType.displayName} (${log.count}회)"
+                                        },
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -234,6 +248,18 @@ fun MealSaverScreen(
         }
 
         item { Spacer(modifier = Modifier.height(104.dp)) }
+    }
+
+    if (showCustomDialog) {
+        CustomMealSavingDialog(
+            initialLabel = memoInput,
+            onConfirm = { amount, label ->
+                onRecordCustomMeal(amount, label)
+                memoInput = ""
+                showCustomDialog = false
+            },
+            onDismiss = { showCustomDialog = false }
+        )
     }
 
     // 끼니별 단일 단가 설정 다이얼로그

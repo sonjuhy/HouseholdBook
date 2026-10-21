@@ -74,6 +74,7 @@ import com.budget.householdbook.domain.usecase.MealUseCases
 import com.budget.householdbook.domain.usecase.ObserveHouseholdOverviewUseCase
 import com.budget.householdbook.domain.usecase.PendingQueueUseCases
 import com.budget.householdbook.domain.usecase.RecordHomeCookedMealUseCase
+import com.budget.householdbook.domain.usecase.RecordCustomMealSavingUseCase
 import com.budget.householdbook.domain.usecase.RunKbQuickInquiryUseCase
 import com.budget.householdbook.domain.usecase.SaveKbCredentialsUseCase
 import com.budget.householdbook.domain.usecase.SeedInitialDataUseCase
@@ -194,6 +195,7 @@ val useCaseModule = module {
 
     // 집밥
     factoryOf(::RecordHomeCookedMealUseCase)
+    factoryOf(::RecordCustomMealSavingUseCase)
     factoryOf(::DeleteMealLogUseCase)
     factoryOf(::UpdateMealPriceConfigUseCase)
     factoryOf(::GetMealWidgetSummaryUseCase)

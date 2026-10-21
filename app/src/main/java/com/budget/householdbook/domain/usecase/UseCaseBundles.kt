@@ -42,6 +42,7 @@ data class CategoryUseCases(
 /** 집밥 절약 카운터 */
 data class MealUseCases(
     val record: RecordHomeCookedMealUseCase,
+    val recordCustom: RecordCustomMealSavingUseCase,
     val delete: DeleteMealLogUseCase,
     val updatePriceConfig: UpdateMealPriceConfigUseCase
 )

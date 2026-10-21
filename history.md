@@ -358,3 +358,11 @@
 - 새 Firestore 규칙을 `<firebase-project-id>`에 배포 (dry-run으로 서버 컴파일 확인 후 `firebase deploy --only firestore:rules`, 2026-10-21)
 - **미확인**: 실제 구글 계정 2개로 방장 넘기기·탈퇴 — [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 2-2로 확인 필요
 - 남은 과제: Google Play 정책상 앱 밖에서도 계정 삭제를 요청할 수 있는 웹 페이지(또는 양식) 주소가 필요
+
+---
+
+## 21단계: 집밥 절약 — 아낀 금액 직접 입력 (2026-10-22)
+- 아침·점심·저녁·간식 원터치 버튼 외에 `✏️ 아낀 금액 직접 입력` 추가 (홈 집밥 카드, 집밥절약 탭)
+- 금액(1원~100만 원)과 무엇을 아꼈는지(선택)를 입력. `+1천/+5천/+10천` 빠른 더하기, 집밥절약 탭의 메뉴 메모를 그대로 가져옴
+- `MealType.CUSTOM` + `RecordCustomMealSavingUseCase`: 기존 `meal_saving_logs`에 입력 금액으로 저장 → 이번 주기 합계·끼니 수·홈 화면 위젯에 함께 반영 (enum 이름 저장이라 DB 마이그레이션 없음). 원터치 버튼·위젯은 `MealType.quickTypes`만 사용
+- 검증: 단위 80건(직접 입력 2건 추가), 계측 23건(`CustomMealSavingDialogTest` 3건) 통과. 에뮬레이터에서 홈 → 직접 입력 8,500원 → 홈 합계·스낵바·집밥절약 기록 목록 확인 후 테스트 기록 삭제

@@ -138,6 +138,10 @@ AI 에이전트는 기능 구현 시 아래 핵심 도메인 요구사항을 정
    - 사용자가 직접 해먹은 끼니 버튼(예: `[점심 집밥 +1]`, `[저녁 집밥 +1]`)을 누르면 즉시 기록됩니다.
    - **절약 금액 표시**: 단순히 **`횟수 × 해당 끼니 지정 금액`의 합산**으로 계산하여 *"이번 달 총 N끼 직접 해먹어 배달비·외식비 OOO,OOO원을 아꼈어요!"* 형태로 직관적인 카드 UI를 제공합니다.
    - 실계좌 지출/수입 통계와는 완전히 분리된 별도 테이블로 관리합니다.
+3. **아낀 금액 직접 입력 (`MealType.CUSTOM`)**:
+   - 정해진 끼니 단가와 맞지 않을 때(도시락, 텀블러 커피 등) `✏️ 아낀 금액 직접 입력` 버튼(홈 카드·집밥절약 탭)으로 금액(필수, 1원~100만 원)과 내용(선택)을 입력해 기록합니다.
+   - 같은 `meal_saving_logs` 테이블에 `mealType = CUSTOM`, `unitAmount = savedAmount = 입력 금액`, `count = 1`, `memo = 입력한 내용`으로 저장하므로 합계·위젯·끼니 수에 그대로 포함됩니다 (enum 이름으로 저장되어 DB 변경 없음).
+   - 원터치 +1 버튼과 홈 화면 위젯은 `MealType.quickTypes`(아침·점심·저녁·간식)만 보여줍니다.
 
 ---
 
@@ -279,7 +283,7 @@ com.budget.householdbook
   | `id` | `Long` (PK) | 기록 ID |
   | `spaceId` | `String` (FK) | 적용 공간 (`PERSONAL` 또는 `SHARED`) |
   | `dateIso` | `String` | 기록 날짜 (`"YYYY-MM-DD"`) |
-  | `mealType` | `MealType` | `BREAKFAST`, `LUNCH`, `DINNER`, `SNACK` |
+  | `mealType` | `MealType` | `BREAKFAST`, `LUNCH`, `DINNER`, `SNACK`, `CUSTOM`(금액 직접 입력) |
   | `count` | `Int` | 횟수 (기본 `1`) |
   | `unitAmount` | `Long` | 해당 끼니의 지정 단가 |
   | `savedAmount` | `Long` | 단순 `count * unitAmount` |

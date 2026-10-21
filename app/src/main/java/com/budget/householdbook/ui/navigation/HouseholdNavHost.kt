@@ -113,16 +113,8 @@ fun HouseholdNavHost(
                 },
                 onUpdateUserTier = { viewModel.updateUserTier(it) },
                 onUpdateThemeMode = { viewModel.updateThemeMode(it) },
-                onUpdateSharedMembers = { members, isShared, inviteCode ->
-                    viewModel.updateSharedMembers(members, isShared, inviteCode)
-                },
-                onSignInGoogle = { googleEmail, displayName ->
-                    viewModel.signInWithGoogleAccount(
-                        activity = context as? Activity,
-                        manualEmail = googleEmail,
-                        manualName = displayName
-                    )
-                },
+                onSignInGoogle = { viewModel.signInWithGoogleAccount(activity = context as? Activity) },
+                onUpdateDisplayName = { viewModel.updateDisplayName(it) },
                 onSignOutGoogle = { viewModel.signOutGoogleAccount() },
                 onInviteByGoogleEmail = { partnerEmail, partnerName, inviteCode ->
                     viewModel.invitePartnerByGoogleEmail(partnerEmail, partnerName, inviteCode)

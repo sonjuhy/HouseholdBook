@@ -87,7 +87,7 @@
    - Firestore 구조: `users/{uid}`(프로필·플랜), `invitations/{inviteCode}__{partnerEmail}`(초대장), `shared_spaces/{inviteCode}`(방 정보 + `memberEmails` 접근 명단 + `joinedEmails` 초대를 수락한 멤버 + `memberNames` 이메일→이름), `shared_spaces/{inviteCode}/transactions/{remoteId}`(공통 생활비 내역).
    - 동기화 전 `ensureRoomMembership()`으로 방 문서의 `memberEmails`에 내 이메일이 있는지 확인하고, 방이 없으면 내가 방장인 새 방을 만듭니다. 멤버가 아니면 업로드·수신을 하지 않습니다.
    - 초대 시 상대 이메일을 먼저 `memberEmails`에 추가한 뒤 초대장을 만들고, 상대가 로그인하면 `PENDING` 초대장을 찾아 자동 연결(`ACCEPTED`)합니다. 초대번호만 입력해서 다른 방에 들어가는 방식은 없습니다.
-   - 클라우드 기능은 **구글 공식 인증 창(`OAuthProvider("google.com")`)으로 로그인한 계정만** 사용합니다. 익명 로그인은 쓰지 않으며, 이메일을 직접 입력해도 인증 창에서 같은 계정으로 확인해야 합니다.
+   - 클라우드 기능은 **구글 계정으로 로그인한 사용자만** 사용합니다 (Credential Manager의 구글 계정 선택 창, 익명 로그인 없음). 설정의 `Google로 계속하기` 한 번으로 로그인하며 이메일·이름을 직접 입력받지 않습니다. 장부에 보일 이름은 구글 프로필 이름이 기본이고 `이름 변경`으로 바꿀 수 있습니다 (`users/{uid}.displayName`과 방 문서 `memberNames`에 반영).
 2. **WorkManager (`androidx.work:work-runtime-ktx`) — `data/work/`**:
    - `BackgroundWorkScheduler`(Koin single)가 모든 예약을 담당합니다.
    - `SyncWorker`: `syncIfEligible()`이 오프라인 등 일시적 오류로 실패하면 `NetworkType.CONNECTED` 조건의 1회 작업(`household_shared_sync_once`, KEEP, 지수 백오프 30초)을 예약해 인터넷 연결 즉시 `PENDING_UPLOAD / PENDING_DELETE`를 반영합니다. 놓친 변경 보정을 위해 6시간 주기 작업(`household_shared_sync_periodic`)도 앱 시작 시 등록합니다. 혼자 쓰기·로그인 안 됨 등 재시도로 해결되지 않는 경우는 바로 종료하고, 최대 8회까지만 재시도합니다.

@@ -270,7 +270,8 @@ class BudgetMealAndSyncUseCasesTest {
         val space = spaces.getSpaceById(shared)!!
         assertNull(space.inviteCode)
         assertEquals(false, space.isRemoteShared)
-        assertEquals("홍길동 (혼자 쓰기)", space.memberNamesCsv)
+        // 이름이 없고 로그인 전이면 '나' (예전처럼 예시 이름·'(혼자 쓰기)' 꼬리표를 붙이지 않음)
+        assertEquals("나", space.memberNamesCsv)
     }
 
     @Test

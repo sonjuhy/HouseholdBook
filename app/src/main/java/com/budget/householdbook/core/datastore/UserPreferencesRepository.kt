@@ -1,5 +1,6 @@
 package com.budget.householdbook.core.datastore
 
+import com.budget.householdbook.domain.model.MemberNames
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -24,7 +25,8 @@ data class AppUserSettings(
     val currentSpaceId: String = AppDatabase.SPACE_ID_SHARED,
     val userTier: UserTier = UserTier.FREE,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val userRealName: String = "홍길동",
+    /** 장부에 표시할 내 이름 (구글 프로필 이름 또는 직접 바꾼 이름, 없으면 빈 값) */
+    val userRealName: String = "",
     val isLoggedIn: Boolean = false,
     val userEmail: String = "",
     val userUid: String = "",
@@ -44,7 +46,11 @@ data class AppUserSettings(
     val autoFilterDuplicateAlerts: Boolean = true,
     /** 알림으로 들어온 내역의 기본 저장 공간 (null이면 마지막으로 보던 공간) */
     val defaultIngestSpaceId: String? = null
-)
+) {
+    /** 다른 멤버에게 보이는 내 이름: 저장된 이름 → 이메일 앞부분 → '나' */
+    val displayName: String
+        get() = userRealName.ifBlank { userEmail.substringBefore("@").ifBlank { "나" } }
+}
 
 const val DEFAULT_KB_AUTO_INQUIRY_HOURS = 6
 
@@ -84,7 +90,7 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
             currentSpaceId = prefs[Keys.CURRENT_SPACE_ID] ?: AppDatabase.SPACE_ID_SHARED,
             userTier = tier,
             themeMode = themeMode,
-            userRealName = prefs[Keys.USER_REAL_NAME] ?: "홍길동",
+            userRealName = prefs[Keys.USER_REAL_NAME]?.takeUnless { it == MemberNames.LEGACY_PLACEHOLDER_NAME }.orEmpty(),
             isLoggedIn = prefs[Keys.IS_LOGGED_IN] ?: false,
             userEmail = prefs[Keys.USER_EMAIL] ?: "",
             userUid = prefs[Keys.USER_UID] ?: "",
@@ -119,7 +125,7 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
     }
 
     override suspend fun setUserRealName(name: String) {
-        context.dataStore.edit { it[Keys.USER_REAL_NAME] = name.trim().ifBlank { "홍길동" } }
+        context.dataStore.edit { it[Keys.USER_REAL_NAME] = name.trim() }
     }
 
     override suspend fun saveGoogleLoginProfile(

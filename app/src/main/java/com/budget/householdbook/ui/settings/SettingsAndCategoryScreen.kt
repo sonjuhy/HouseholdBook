@@ -73,6 +73,7 @@ import com.budget.householdbook.data.work.BackgroundWorkScheduler
 import com.budget.householdbook.domain.model.FinancialInstitutions
 import com.budget.householdbook.domain.model.ThemeMode
 import com.budget.householdbook.domain.model.TransactionType
+import com.budget.householdbook.domain.model.MemberNames
 import com.budget.householdbook.domain.model.UserTier
 import com.budget.householdbook.ui.HouseholdUiState
 import com.budget.householdbook.ui.AccountDeletionState
@@ -98,8 +99,8 @@ fun SettingsAndCategoryScreen(
     onUpdateBudgetAndStartDay: (Long, Int) -> Unit,
     onUpdateUserTier: (UserTier) -> Unit,
     onUpdateThemeMode: (ThemeMode) -> Unit,
-    onUpdateSharedMembers: (String, Boolean, String?) -> Unit,
-    onSignInGoogle: (manualEmail: String?, manualName: String?) -> Unit,
+    onSignInGoogle: () -> Unit,
+    onUpdateDisplayName: (String) -> Unit,
     onSignOutGoogle: () -> Unit,
     onInviteByGoogleEmail: (partnerEmail: String, partnerName: String, inviteCode: String) -> Unit,
     onSaveKbCredentials: (institutionId: String, accountNo: String, birthOrBiz: String, pw4: String, realName: String) -> Unit,
@@ -138,7 +139,7 @@ fun SettingsAndCategoryScreen(
     var addingSubForParent by remember { mutableStateOf<CategoryEntity?>(null) }
     var editingCategory by remember { mutableStateOf<CategoryEntity?>(null) }
 
-    var showGoogleLoginDialog by remember { mutableStateOf(false) }
+    var showEditName by remember { mutableStateOf(false) }
     var showKbSetupDialog by remember { mutableStateOf(false) }
     var showMemberShareDialog by remember { mutableStateOf(false) }
     var showInstitutionPicker by remember { mutableStateOf(false) }
@@ -161,40 +162,17 @@ fun SettingsAndCategoryScreen(
         // 0-A. 구글 계정 로그인 및 초대 연결 카드
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                IosSectionHeader(title = "내 구글 계정 및 초대 연결")
+                IosSectionHeader(title = "계정")
 
                 IosInsetGroupedCard(contentPadding = PaddingValues(16.dp)) {
                     if (uiState.settings.isLoggedIn && uiState.settings.userEmail.isNotBlank()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 10.dp)
-                            ) {
-                                Text(
-                                    text = "🟢 ${uiState.settings.userRealName} (${uiState.settings.userEmail})",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = "현재 플랜: ${uiState.settings.userTier.displayName}\n${uiState.syncStatusMessage}",
-                                    fontSize = 12.sp,
-                                    lineHeight = 18.sp,
-                                    color = IosSystemGray
-                                )
-                            }
-                            IosTintedButton(
-                                text = "로그아웃",
-                                onClick = onSignOutGoogle,
-                                tintColor = ExpenseCoral
-                            )
-                        }
+                        AccountProfileRow(
+                            name = uiState.settings.displayName,
+                            email = uiState.settings.userEmail,
+                            status = "${uiState.settings.userTier.displayName} · ${uiState.syncStatusMessage}",
+                            onEditName = { showEditName = true },
+                            onSignOut = onSignOutGoogle
+                        )
 
                         Spacer(modifier = Modifier.height(10.dp))
                         IosHairlineDivider()
@@ -205,13 +183,13 @@ fun SettingsAndCategoryScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             IosFilledButton(
-                                text = "구글 계정으로 파트너 초대",
+                                text = "함께 쓸 사람 초대",
                                 onClick = { showMemberShareDialog = true },
                                 modifier = Modifier.weight(1f),
                                 icon = Icons.Default.PersonAdd
                             )
                             IosTintedButton(
-                                text = "초대장 공유",
+                                text = "초대 문구 공유",
                                 onClick = {
                                     val code = sharedSpace?.inviteCode
                                     if (code.isNullOrBlank()) {
@@ -223,11 +201,11 @@ fun SettingsAndCategoryScreen(
                                         type = "text/plain"
                                         putExtra(
                                             Intent.EXTRA_TEXT,
-                                            "[우리집 가계부 초대]\n'${uiState.settings.userRealName}'님이 함께 쓰는 생활비 장부에 초대했습니다!\n초대받은 구글 계정으로 앱에 로그인하면 자동으로 연결됩니다. (초대번호: $code)"
+                                            "${uiState.settings.displayName}님이 HouseholdBook 공유 장부에 초대했어요.\n앱을 설치하고, 초대받은 구글 계정으로 로그인하면 바로 함께 쓸 수 있어요."
                                         )
                                     }
                                     runCatching {
-                                        context.startActivity(Intent.createChooser(shareIntent, "초대장 보내기"))
+                                        context.startActivity(Intent.createChooser(shareIntent, "초대 보내기"))
                                     }
                                 },
                                 icon = Icons.Default.Share
@@ -254,21 +232,24 @@ fun SettingsAndCategoryScreen(
                         }
                     } else {
                         Text(
-                            text = "구글 계정으로 로그인하고 시작하기",
+                            text = "로그인하고 가족과 함께 쓰기",
+                            style = MaterialTheme.typography.titleMedium,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "처음 로그인하면 내 계정이 기본(혼자 쓰기)인지 프리미엄(함께 쓰기)인지 확인하여 자동으로 적용합니다.\n가족·짝꿍이 내 구글 이메일로 보낸 초대가 있다면 즉시 함께 쓰는 장부로 연결됩니다.",
+                            text = "Google 계정으로 로그인하면 가족·짝꿍을 초대해 생활비 장부를 함께 쓸 수 있어요. " +
+                                "초대받았다면 로그인만 하면 바로 연결돼요. 로그인하지 않아도 이 휴대폰에서는 모든 기능을 쓸 수 있어요.",
+                            style = MaterialTheme.typography.bodyMedium,
                             fontSize = 12.sp,
                             lineHeight = 18.sp,
                             color = IosSystemGray
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         IosFilledButton(
-                            text = "구글 계정으로 로그인",
-                            onClick = { showGoogleLoginDialog = true },
+                            text = "Google로 계속하기",
+                            onClick = onSignInGoogle,
                             modifier = Modifier.fillMaxWidth(),
                             icon = Icons.Default.AccountCircle
                         )
@@ -469,7 +450,7 @@ fun SettingsAndCategoryScreen(
         // 2. 이용 플랜 및 생활비 함께 쓰기
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                IosSectionHeader(title = "이용 플랜 및 생활비 함께 쓰기")
+                IosSectionHeader(title = "혼자 쓰기 · 함께 쓰기")
 
                 IosInsetGroupedCard(contentPadding = PaddingValues(16.dp)) {
                     IosSegmentedControl(
@@ -493,25 +474,39 @@ fun SettingsAndCategoryScreen(
                                 .padding(end = 10.dp)
                         ) {
                             Text(
-                                text = "함께 쓰는 멤버: ${uiState.currentSpace.memberNamesCsv}",
+                                text = if (sharedSpace?.isRemoteShared == true) {
+                                    "함께 쓰는 멤버: ${
+                                        MemberNames.summary(
+                                            csv = sharedSpace.memberNamesCsv,
+                                            isShared = true,
+                                            myName = uiState.settings.displayName
+                                        )
+                                    }"
+                                } else {
+                                    "지금은 나만 쓰고 있어요"
+                                },
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
                                 text = if (uiState.settings.userTier == UserTier.FREE) {
-                                    "기본 플랜: 내 휴대폰에만 안전하게 보관되며 다른 사람과 공유되지 않습니다."
+                                    "이 휴대폰에만 저장되고 다른 사람과 공유되지 않아요."
                                 } else {
-                                    "프리미엄: 가족·연인과 실시간으로 함께 쓰며 인터넷이 없어도 기록됩니다.\n초대번호: ${sharedSpace?.inviteCode ?: "아직 없음"}"
+                                    "가족과 같은 장부를 실시간으로 함께 써요. 인터넷이 없어도 기록되고 연결되면 자동으로 맞춰져요."
                                 },
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontSize = 12.sp,
                                 lineHeight = 18.sp,
                                 color = IosSystemGray
                             )
                         }
                         IosTintedButton(
-                            text = "멤버 관리",
-                            onClick = { showMemberShareDialog = true },
-                            icon = if (uiState.settings.userTier == UserTier.FREE) Icons.Default.Lock else null
+                            text = "초대하기",
+                            // 초대는 구글 계정이 있어야 하므로 로그인 전이면 로그인부터
+                            onClick = {
+                                if (uiState.settings.isLoggedIn) showMemberShareDialog = true else onSignInGoogle()
+                            },
+                            icon = Icons.Default.PersonAdd
                         )
                     }
                 }
@@ -1081,169 +1076,30 @@ fun SettingsAndCategoryScreen(
         )
     }
 
-    // 구글 계정으로 로그인 다이얼로그 (로그인 시 자동으로 기본/프리미엄 플랜 및 초대 여부 확인)
-    if (showGoogleLoginDialog) {
-        var googleEmailText by remember(uiState.settings.userEmail) {
-            mutableStateOf(uiState.settings.userEmail)
-        }
-        var displayNameText by remember(uiState.settings.userRealName) {
-            mutableStateOf(
-                uiState.settings.userRealName.ifBlank {
-                    uiState.currentSpace.memberNamesCsv.split(",").firstOrNull()?.trim().orEmpty()
-                }
-            )
-        }
-
-        AlertDialog(
-            onDismissRequest = { showGoogleLoginDialog = false },
-            title = { Text("구글 계정으로 로그인") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "구글 계정으로 로그인하면 내 계정 상태를 먼저 확인하여\n혼자 쓰는 기본 플랜인지, 함께 쓰는 프리미엄 플랜인지 자동으로 맞춰줍니다.\n장부 보호를 위해 항상 구글 인증 창에서 본인 확인을 거칩니다.",
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        color = IosSystemGray
-                    )
-                    OutlinedTextField(
-                        value = googleEmailText,
-                        onValueChange = { googleEmailText = it },
-                        label = { Text("구글 이메일 주소 (예: myname@gmail.com)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = displayNameText,
-                        onValueChange = { displayNameText = it },
-                        label = { Text("장부에 표시할 내 이름 (예: 민수)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    IosTintedButton(
-                        text = "구글 공식 인증 창으로 바로 로그인",
-                        onClick = {
-                            onSignInGoogle("", displayNameText.trim())
-                            showGoogleLoginDialog = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+    if (showEditName) {
+        EditDisplayNameDialog(
+            currentName = uiState.settings.displayName,
+            onConfirm = {
+                onUpdateDisplayName(it)
+                showEditName = false
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onSignInGoogle(googleEmailText.trim(), displayNameText.trim())
-                        showGoogleLoginDialog = false
-                    }
-                ) {
-                    Text("로그인 및 플랜 확인", maxLines = 1, softWrap = false)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showGoogleLoginDialog = false }) {
-                    Text("취소", maxLines = 1, softWrap = false)
-                }
-            }
+            onDismiss = { showEditName = false }
         )
     }
 
-    // 공통 생활비 멤버 관리 및 구글 계정 초대 다이얼로그
+    // 함께 쓸 사람 초대 (구글 이메일로 초대 → 그 계정으로 로그인하면 자동 연결)
     if (showMemberShareDialog) {
-        var membersText by remember(sharedSpace) {
-            mutableStateOf(sharedSpace?.memberNamesCsv ?: "나")
-        }
-        val inviteCodeText by remember(sharedSpace) {
-            mutableStateOf(
-                sharedSpace?.inviteCode?.takeIf { RemoteSyncManager.isValidInviteCode(it) }
-                    ?: RemoteSyncManager.generateInviteCode()
-            )
-        }
-        var partnerEmailText by remember { mutableStateOf("") }
-        var partnerNameText by remember { mutableStateOf("") }
-
-        AlertDialog(
-            onDismissRequest = { showMemberShareDialog = false },
-            title = { Text("함께 쓰는 멤버 및 구글 계정 초대") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "상대방의 구글 이메일로 초대장을 보내면,\n상대방이 로그인할 때 자동으로 프리미엄 함께 쓰기 장부로 연결됩니다.",
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        color = IosSystemGray
-                    )
-                    OutlinedTextField(
-                        value = partnerEmailText,
-                        onValueChange = { partnerEmailText = it },
-                        label = { Text("초대할 분의 구글 이메일 (예: partner@gmail.com)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = partnerNameText,
-                        onValueChange = { partnerNameText = it },
-                        label = { Text("초대할 분의 호칭/이름 (예: 짝꿍)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    IosFilledButton(
-                        text = "구글 계정으로 초대 보내기",
-                        onClick = {
-                            onInviteByGoogleEmail(
-                                partnerEmailText.trim(),
-                                partnerNameText.trim(),
-                                inviteCodeText.trim()
-                            )
-                            showMemberShareDialog = false
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    IosHairlineDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                    Text(
-                        text = "멤버 이름 설정 (초대번호는 자동 발급)",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    OutlinedTextField(
-                        value = membersText,
-                        onValueChange = { membersText = it },
-                        label = { Text("함께 쓰는 멤버 이름 (예: 나, 짝꿍)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = inviteCodeText,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("공유 초대번호 (자동 발급)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+        InvitePartnerDialog(
+            onInvite = { email, name ->
+                onInviteByGoogleEmail(
+                    email,
+                    name,
+                    sharedSpace?.inviteCode?.takeIf { RemoteSyncManager.isValidInviteCode(it) }
+                        ?: RemoteSyncManager.generateInviteCode()
+                )
+                showMemberShareDialog = false
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (uiState.settings.userTier == UserTier.FREE) {
-                            onUpdateUserTier(UserTier.PRO)
-                        }
-                        onUpdateSharedMembers(membersText, true, inviteCodeText)
-                        showMemberShareDialog = false
-                    }
-                ) {
-                    Text("멤버·초대번호 저장", maxLines = 1, softWrap = false)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showMemberShareDialog = false }) {
-                    Text("닫기", maxLines = 1, softWrap = false)
-                }
-            }
+            onDismiss = { showMemberShareDialog = false }
         )
     }
 }

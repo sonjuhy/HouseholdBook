@@ -292,6 +292,13 @@ class FakeSharedSyncRepository : SharedSyncRepository {
         left = true
         return Result.success(Unit)
     }
+    var googleDisplayName: String? = null
+    override fun currentGoogleDisplayName(): String? = googleDisplayName
+    var updatedDisplayName: String? = null
+    override suspend fun updateDisplayName(name: String): Result<Unit> {
+        updatedDisplayName = name
+        return Result.success(Unit)
+    }
     var newOwnerEmail: String? = null
     override suspend fun transferOwnership(newOwnerEmail: String): Result<SharedRoomInfo> {
         this.newOwnerEmail = newOwnerEmail

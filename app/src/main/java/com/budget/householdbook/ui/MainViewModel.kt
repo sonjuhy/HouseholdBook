@@ -485,9 +485,9 @@ class MainViewModel(
         viewModelScope.launch {
             account.updateUserTier(tier)
             _snackbarMessage.value = if (tier == UserTier.FREE) {
-                "기본 (혼자 쓰기) 모드로 변경되었습니다. 내 휴대폰에만 안전하게 저장됩니다."
+                "혼자 쓰기로 바꿨어요. 이 휴대폰에만 저장돼요."
             } else {
-                "프리미엄 (함께 쓰기) 모드로 변경되었습니다! 가족·짝꿍과 장부를 함께 쓸 수 있습니다."
+                "함께 쓰기로 바꿨어요. 가족을 초대해 보세요."
             }
         }
     }
@@ -507,16 +507,29 @@ class MainViewModel(
                 manualDisplayName = manualName
             ).onSuccess { info ->
                 _snackbarMessage.value = when {
-                    info.isInvitedJoin ->
-                        "🎉 '${info.inviterName}'님의 초대가 확인되어 '프리미엄 (함께 쓰기)' 장부(${info.inviteCode})에 자동 연결되었습니다!"
-                    info.isExistingUser ->
-                        "✅ 구글 계정(${info.email}) 로그인 완료! 회원님의 '${info.resolvedTier.displayName}' 플랜이 적용되었습니다."
-                    else ->
-                        "👋 환영합니다! 구글 계정(${info.email}) 확인 결과 '${info.resolvedTier.displayName}' 플랜으로 시작합니다."
+                    info.isInvitedJoin -> "${info.inviterName}님의 공유 장부에 연결됐어요."
+                    info.isExistingUser -> "${info.displayName}님, 다시 오셨네요!"
+                    else -> "${info.displayName}님, 반가워요!"
                 }
             }.onFailure { err ->
-                _snackbarMessage.value = err.message ?: "구글 로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요."
+                _snackbarMessage.value = err.message ?: "로그인하지 못했어요. 잠시 후 다시 시도해 주세요."
             }
+        }
+    }
+
+    /** 장부에 표시할 내 이름 바꾸기 */
+    fun updateDisplayName(name: String) {
+        viewModelScope.launch {
+            account.updateDisplayName(name)
+                .onSuccess { _snackbarMessage.value = "이름을 '${name.trim()}'(으)로 바꿨어요." }
+                .onFailure {
+                    _snackbarMessage.value = if (it is IllegalArgumentException) {
+                        it.message
+                    } else {
+                        // 이 휴대폰에는 저장됨. 공유 장부·프로필 반영만 실패 (인터넷 등)
+                        "이 휴대폰에는 저장했어요. 함께 쓰는 장부에는 인터넷에 연결된 뒤 다시 바꿔 주세요."
+                    }
+                }
         }
     }
 
@@ -612,8 +625,8 @@ class MainViewModel(
                 partnerGoogleEmail = partnerEmail,
                 partnerName = partnerName,
                 customInviteCode = customInviteCode
-            ).onSuccess { code ->
-                _snackbarMessage.value = "💌 '$partnerEmail' 계정으로 초대장을 보냈습니다! 상대방이 구글 로그인하면($code) 즉시 함께 쓰기가 연결됩니다."
+            ).onSuccess {
+                _snackbarMessage.value = "$partnerEmail 님에게 초대를 보냈어요. 이 계정으로 로그인하면 바로 함께 쓸 수 있어요."
             }.onFailure { err ->
                 _snackbarMessage.value = err.message ?: "초대장 발송 중 문제가 발생했습니다."
             }
@@ -623,22 +636,7 @@ class MainViewModel(
     fun signOutGoogleAccount() {
         viewModelScope.launch {
             account.signOut()
-            _snackbarMessage.value = "구글 계정에서 로그아웃되었습니다."
-        }
-    }
-
-    fun updateSharedMembers(memberNamesCsv: String, isShared: Boolean, inviteCode: String? = null) {
-        viewModelScope.launch {
-            if (uiState.value.settings.userTier == UserTier.FREE && isShared) {
-                _snackbarMessage.value = "함께 쓰기 기능은 '프리미엄 (함께 쓰기)' 플랜에서 이용할 수 있습니다."
-                return@launch
-            }
-            account.updateSharedMembers(
-                memberNamesCsv = memberNamesCsv,
-                isShared = isShared,
-                customInviteCode = inviteCode
-            )
-            _snackbarMessage.value = "함께 쓰는 멤버 설정이 저장되고 실시간 장부 동기화가 완료되었습니다."
+            _snackbarMessage.value = "로그아웃했어요."
         }
     }
 

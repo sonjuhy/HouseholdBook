@@ -69,7 +69,7 @@ object FinancialParserEngine {
         title: String,
         body: String,
         occurredAt: Long = System.currentTimeMillis(),
-        userRealName: String = "홍길동",
+        userRealName: String = "",
         sourcePackage: String? = null
     ): ParsedNotificationDraft? {
         val combinedText = listOf(title.trim(), body.trim())

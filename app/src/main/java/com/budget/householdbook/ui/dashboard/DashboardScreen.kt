@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.budget.householdbook.domain.model.MemberNames
 import com.budget.householdbook.ui.mealsaver.CustomMealSavingDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -314,7 +315,13 @@ fun DashboardScreen(
                         IosHairlineDivider()
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "👥 함께 쓰는 멤버: ${uiState.currentSpace.memberNamesCsv} · ${uiState.syncStatusMessage}",
+                            text = "👥 ${
+                                MemberNames.summary(
+                                    csv = uiState.currentSpace.memberNamesCsv,
+                                    isShared = uiState.currentSpace.isRemoteShared,
+                                    myName = uiState.settings.displayName
+                                )
+                            } · ${uiState.syncStatusMessage}",
                             fontSize = 11.sp,
                             color = IosSystemGray
                         )

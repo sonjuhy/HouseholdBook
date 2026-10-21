@@ -69,7 +69,7 @@ class ApprovePendingItemUseCase(
                     merchantOrTitle = merchantOrTitle.trim().ifBlank { pending.parsedMerchant },
                     memo = memo.trim(),
                     originQueueId = pending.id,
-                    authorName = settings.userRealName,
+                    authorName = settings.displayName,
                     transactionDate = pending.occurredAt,
                     syncStatus = if (settings.userTier == UserTier.PRO && space?.isRemoteShared == true) {
                         SyncStatus.PENDING_UPLOAD
@@ -144,7 +144,7 @@ class ApproveSplitPendingItemUseCase(
                     merchantOrTitle = "$merchantOrTitle (분할 ${index + 1})",
                     memo = split.memo.ifBlank { "원본 ${CurrencyAndDateFormatter.formatWon(pending.parsedAmount)} 분할 등록" },
                     originQueueId = pending.id,
-                    authorName = settings.userRealName,
+                    authorName = settings.displayName,
                     transactionDate = pending.occurredAt,
                     syncStatus = if (isSharedSynced && split.spaceId == AppDatabase.SPACE_ID_SHARED) {
                         SyncStatus.PENDING_UPLOAD

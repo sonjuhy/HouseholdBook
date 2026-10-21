@@ -27,6 +27,7 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.budget.householdbook.domain.model.SharedRoomMembers
+import com.budget.householdbook.domain.model.MemberNames
 import com.budget.householdbook.domain.model.SharedRoomInfo
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
@@ -61,8 +62,8 @@ data class GoogleLoginResult(
 /**
  * 공유 장부 방의 멤버(memberEmails)가 아닌 계정으로 접근하려 할 때 발생
  */
-class NotRoomMemberException(inviteCode: String) : IllegalStateException(
-    "초대받지 않은 공유 장부입니다 ($inviteCode). 초대받은 구글 계정으로 로그인하거나 상대방에게 초대를 요청해주세요."
+class NotRoomMemberException(val inviteCode: String) : IllegalStateException(
+    "초대받지 않은 공유 장부예요. 초대받은 구글 계정으로 로그인하거나 다시 초대를 요청해 주세요."
 )
 
 /**
@@ -84,7 +85,7 @@ class RemoteSyncManager(
 ) {
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val _lastSyncMessage = MutableStateFlow("휴대폰에 안전하게 자동 저장 중")
+    private val _lastSyncMessage = MutableStateFlow("이 휴대폰에 저장돼요")
     val lastSyncMessage: StateFlow<String> = _lastSyncMessage.asStateFlow()
 
     private var activeRoomCode: String? = null
@@ -151,6 +152,9 @@ class RemoteSyncManager(
 
     /** 지금 공유 장부에 업로드할 수 있는 상태인지 (Firebase 설정 + 구글 계정 로그인) */
     fun canSyncNow(): Boolean = isFirebaseConfigured() && currentGoogleUser() != null
+
+    fun currentGoogleDisplayName(): String? =
+        if (isFirebaseConfigured()) currentGoogleUser()?.displayName?.trim()?.takeIf { it.isNotBlank() } else null
 
     private fun currentGoogleUser(): FirebaseUser? {
         val user = FirebaseAuth.getInstance().currentUser ?: return null
@@ -399,12 +403,13 @@ class RemoteSyncManager(
                 val savedInviteCode = userSnap.getString("inviteCode")
                     ?.takeIf { isValidInviteCode(it) }
                     ?: generateInviteCode()
+                // 직접 바꾼 이름이 있으면 그 이름, 없거나 예전 예시 이름이면 구글 프로필 이름
                 val savedName = userSnap.getString("displayName")
-                    ?.takeIf { it.isNotBlank() }
+                    ?.takeIf { it.isNotBlank() && it != MemberNames.LEGACY_PLACEHOLDER_NAME }
                     ?: displayName
-                val savedMembers = userSnap.getString("memberNamesCsv")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: if (resolvedTier == UserTier.PRO) "$savedName, 짝꿍" else "$savedName (혼자 쓰기)"
+                val savedMembers = MemberNames.clean(userSnap.getString("memberNamesCsv").orEmpty(), savedName)
+                    .joinToString(", ")
+                    .ifBlank { savedName }
 
                 userDocRef.set(
                     mapOf(
@@ -439,7 +444,7 @@ class RemoteSyncManager(
             // 4. 처음 로그인한 신규 구글 계정인 경우: 기본(FREE)으로 시작하고 프로필을 Firestore에 생성
             val newTier = UserTier.FREE
             val generatedCode = generateInviteCode()
-            val defaultMembers = "$displayName (혼자 쓰기)"
+            val defaultMembers = displayName
 
             userDocRef.set(
                 mapOf(
@@ -694,7 +699,33 @@ class RemoteSyncManager(
             mapOf("inviteCode" to generateInviteCode(), "updatedAt" to System.currentTimeMillis()),
             SetOptions.merge()
         ).await()
-        handleNoLongerMember(inviteCode, message = "공유 장부에서 나왔습니다. 이 휴대폰의 기록은 그대로 남아 있습니다.")
+        handleNoLongerMember(inviteCode, message = "공유 장부에서 나왔어요 · 이 휴대폰에만 저장돼요")
+    }
+
+    /**
+     * 장부에 표시할 내 이름 변경: 내 프로필과, 함께 쓰는 장부가 있으면 멤버 명단의 내 이름도 바꿈
+     * 로그인하지 않았으면 아무것도 하지 않음 (이 휴대폰 설정만 바뀜)
+     */
+    suspend fun updateDisplayName(name: String): Result<Unit> = runCatching {
+        if (!isFirebaseConfigured()) return@runCatching
+        val user = currentGoogleUser() ?: return@runCatching
+        val myEmail = user.email.orEmpty().trim().lowercase()
+        val firestore = FirebaseFirestore.getInstance()
+        val now = System.currentTimeMillis()
+        userProfileDoc(firestore, user.uid).set(
+            mapOf("uid" to user.uid, "email" to myEmail, "displayName" to name, "updatedAt" to now),
+            SetOptions.merge()
+        ).await()
+        val inviteCode = spaceDao.getSpaceById(AppDatabase.SPACE_ID_SHARED)?.inviteCode?.takeIf { isValidInviteCode(it) }
+            ?: return@runCatching
+        // 공유 장부가 있고 내가 멤버일 때만 (방이 없거나 멤버가 아니면 조용히 넘어감)
+        runCatching {
+            roomDoc(firestore, inviteCode).update(
+                FieldPath.of("memberNames", myEmail), name,
+                FieldPath.of("updatedAt"), now
+            ).await()
+            refreshLocalMembers(loadRoomMembers().getOrThrow())
+        }
     }
 
     /**
@@ -796,7 +827,7 @@ class RemoteSyncManager(
 
         // 5. 로그인 계정
         user.delete().await()
-        _lastSyncMessage.value = "회원 탈퇴가 끝났습니다. 내 휴대폰에만 보관 중"
+        _lastSyncMessage.value = "이 휴대폰에만 저장돼요"
     }
 
     /** Firestore 일괄 쓰기는 한 번에 500건까지 */
@@ -851,7 +882,7 @@ class RemoteSyncManager(
      */
     private suspend fun handleNoLongerMember(
         inviteCode: String,
-        message: String = "공유 장부에서 제외되어 혼자 쓰기로 바뀌었습니다. 이 휴대폰의 기록은 그대로 남아 있습니다."
+        message: String = "공유 장부에서 빠졌어요 · 이 휴대폰에만 저장돼요"
     ) {
         stopRealtimeListener()
         verifiedRoomKey = null
@@ -859,7 +890,7 @@ class RemoteSyncManager(
         if (shared?.inviteCode == inviteCode) {
             spaceDao.updateShareConfig(
                 spaceId = AppDatabase.SPACE_ID_SHARED,
-                memberNamesCsv = "${myDisplayName()} (혼자 쓰기)",
+                memberNamesCsv = myDisplayName(),
                 inviteCode = null,
                 isShared = false
             )
@@ -879,25 +910,25 @@ class RemoteSyncManager(
                 FirebaseAuth.getInstance().signOut()
             }
         }
-        _lastSyncMessage.value = "내 휴대폰에만 보관 중 (로그아웃됨)"
+        _lastSyncMessage.value = "로그아웃됨 · 이 휴대폰에만 저장돼요"
     }
 
     suspend fun syncIfEligible(userTier: UserTier, isRemoteShared: Boolean): Boolean {
         if (userTier != UserTier.PRO) {
             stopRealtimeListener()
-            _lastSyncMessage.value = "내 휴대폰에만 보관 중"
+            _lastSyncMessage.value = "이 휴대폰에만 저장돼요"
             return false
         }
         if (!isRemoteShared) {
             stopRealtimeListener()
-            _lastSyncMessage.value = "저장 완료 (혼자 보는 장부)"
+            _lastSyncMessage.value = "이 휴대폰에만 저장돼요"
             return false
         }
 
         if (!isFirebaseConfigured()) {
             transactionDao.markAllUploadsSynced()
             transactionDao.purgePendingDeletes()
-            _lastSyncMessage.value = "휴대폰에 저장됨 (Firebase 설정 파일 추가 시 실시간 공유 활성화)"
+            _lastSyncMessage.value = "이 휴대폰에 저장돼요"
             return false
         }
 
@@ -905,7 +936,7 @@ class RemoteSyncManager(
         val user = currentGoogleUser()
         if (user == null) {
             stopRealtimeListener()
-            _lastSyncMessage.value = "휴대폰에 저장됨 (구글 계정으로 로그인하면 함께 쓰는 장부에 반영)"
+            _lastSyncMessage.value = "로그인하면 함께 쓰는 장부에 반영돼요"
             return false
         }
         val email = user.email.orEmpty().trim().lowercase()
@@ -972,7 +1003,7 @@ class RemoteSyncManager(
                 transactionDao.markSyncedByIds(uploadedIds)
             }
 
-            _lastSyncMessage.value = "함께 쓰는 장부 실시간 반영 완료 (초대번호: $inviteCode)"
+            _lastSyncMessage.value = "함께 쓰는 장부와 동기화됨"
             true
         }.getOrElse { error ->
             if (error is NotRoomMemberException || error.isPermissionDenied()) {
@@ -982,9 +1013,9 @@ class RemoteSyncManager(
                 stopRealtimeListener()
                 verifiedRoomKey = null
                 _lastSyncMessage.value = error.message?.takeIf { error is NotRoomMemberException }
-                    ?: "공유 장부에 접근할 권한이 없습니다. 초대받은 구글 계정으로 로그인해주세요."
+                    ?: "이 공유 장부에 접근할 수 없어요. 초대받은 계정으로 로그인해 주세요."
             } else {
-                _lastSyncMessage.value = "휴대폰에 먼저 저장됨 (인터넷 연결 시 자동 반영)"
+                _lastSyncMessage.value = "인터넷에 연결되면 자동으로 동기화돼요"
                 // 오프라인 등 일시적 실패: 인터넷이 연결되면 SyncWorker가 대신 업로드
                 workScheduler.requestSharedSync()
             }
@@ -1011,7 +1042,7 @@ class RemoteSyncManager(
                         if (currentGoogleUser() != null) syncScope.launch { handleNoLongerMember(inviteCode) }
                         stopRealtimeListener()
                         verifiedRoomKey = null
-                        _lastSyncMessage.value = "공유 장부에 접근할 권한이 없습니다. 초대받은 구글 계정으로 로그인해주세요."
+                        _lastSyncMessage.value = "이 공유 장부에 접근할 수 없어요. 초대받은 계정으로 로그인해 주세요."
                         return@addSnapshotListener
                     }
                     if (error != null || snapshot == null) return@addSnapshotListener

@@ -45,6 +45,10 @@ class SyncOnAppStartUseCase(
 ) {
     suspend operator fun invoke() {
         val settings = settingsRepository.userSettingsFlow.first()
+        // 로그인했는데 이름이 비어 있으면(예전 예시 이름을 지운 경우 등) 구글 프로필 이름으로 채움
+        if (settings.isLoggedIn && settings.userRealName.isBlank()) {
+            sharedSyncRepository.currentGoogleDisplayName()?.let { settingsRepository.setUserRealName(it) }
+        }
         val sharedSpace = spaceRepository.getSpaceById(AppDatabase.SPACE_ID_SHARED)
         sharedSyncRepository.syncIfEligible(
             userTier = settings.userTier,
@@ -107,7 +111,7 @@ class UpdateSharedMembersUseCase(
         if (settings.isLoggedIn && settings.userEmail.isNotBlank()) {
             sharedSyncRepository.syncUserProfileTierToCloud(
                 email = settings.userEmail,
-                displayName = settings.userRealName,
+                displayName = settings.displayName,
                 tier = settings.userTier,
                 inviteCode = code,
                 memberNamesCsv = memberNamesCsv
@@ -126,12 +130,9 @@ class UpdateUserTierUseCase(
 ) {
     suspend operator fun invoke(tier: UserTier) {
         settingsRepository.setUserTier(tier)
-        val currentName = settingsRepository.userSettingsFlow.first().userRealName
-        if (tier == UserTier.FREE) {
-            updateSharedMembers("$currentName (혼자 쓰기)", isShared = false)
-        } else {
-            updateSharedMembers("$currentName, 짝꿍", isShared = true)
-        }
+        // 멤버 이름 목록은 실제 참여자 기준 (함께 쓰는 사람이 들어오면 동기화 때 채워짐)
+        val currentName = settingsRepository.userSettingsFlow.first().displayName
+        updateSharedMembers(currentName, isShared = tier == UserTier.PRO)
     }
 }
 
@@ -185,7 +186,7 @@ class InvitePartnerUseCase(
         val settings = settingsRepository.userSettingsFlow.first()
         val result = sharedSyncRepository.sendGoogleAccountInvitation(
             inviterEmail = settings.userEmail,
-            inviterName = settings.userRealName,
+            inviterName = settings.displayName,
             partnerGoogleEmail = partnerGoogleEmail,
             partnerName = partnerName,
             inviteCode = customInviteCode
@@ -211,7 +212,7 @@ class SignOutGoogleUseCase(
         settingsRepository.clearGoogleLogin()
         spaceRepository.updateShareConfig(
             spaceId = AppDatabase.SPACE_ID_SHARED,
-            memberNamesCsv = "나 (혼자 쓰기)",
+            memberNamesCsv = "나",
             inviteCode = null,
             isShared = false
         )
@@ -264,12 +265,33 @@ class DeleteAccountUseCase(
             settingsRepository.clearGoogleLogin()
             spaceRepository.updateShareConfig(
                 spaceId = AppDatabase.SPACE_ID_SHARED,
-                memberNamesCsv = "나 (혼자 쓰기)",
+                memberNamesCsv = "나",
                 inviteCode = null,
                 isShared = false
             )
             if (wipeLocalData) localDataResetter.wipeAllLocalData()
         }
         return result
+    }
+}
+
+/**
+ * 장부에 표시할 내 이름 바꾸기 (기본값은 구글 프로필 이름)
+ * - 이 휴대폰 설정에 먼저 저장하고, 로그인 중이면 내 프로필과 함께 쓰는 장부 멤버 명단에도 반영
+ */
+class UpdateDisplayNameUseCase(
+    private val settingsRepository: SettingsRepository,
+    private val sharedSyncRepository: SharedSyncRepository
+) {
+    suspend operator fun invoke(name: String): Result<Unit> {
+        val clean = name.trim()
+        if (clean.isBlank()) return Result.failure(IllegalArgumentException("이름을 입력해 주세요."))
+        if (clean.length > MAX_LENGTH) return Result.failure(IllegalArgumentException("이름은 ${MAX_LENGTH}자까지 쓸 수 있어요."))
+        settingsRepository.setUserRealName(clean)
+        return sharedSyncRepository.updateDisplayName(clean)
+    }
+
+    companion object {
+        const val MAX_LENGTH = 20
     }
 }

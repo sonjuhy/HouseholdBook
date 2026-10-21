@@ -42,7 +42,7 @@ class AddManualTransactionUseCase(
                 subCategoryId = subCategoryId,
                 merchantOrTitle = merchantOrTitle.trim().ifBlank { "직접 입력 내역" },
                 memo = memo.trim(),
-                authorName = settings.userRealName,
+                authorName = settings.displayName,
                 transactionDate = transactionDate,
                 syncStatus = if (settings.userTier == UserTier.PRO && space?.isRemoteShared == true) {
                     SyncStatus.PENDING_UPLOAD

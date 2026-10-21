@@ -9,8 +9,8 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 enum class UserTier(val displayName: String) {
-    FREE("기본 (혼자 쓰기)"),
-    PRO("프리미엄 (함께 쓰기)")
+    FREE("혼자 쓰기"),
+    PRO("함께 쓰기")
 }
 
 /**

@@ -66,6 +66,7 @@ import com.budget.householdbook.domain.usecase.CancelInvitationUseCase
 import com.budget.householdbook.domain.usecase.LeaveSharedSpaceUseCase
 import com.budget.householdbook.domain.usecase.TransferOwnershipUseCase
 import com.budget.householdbook.domain.usecase.DeleteAccountUseCase
+import com.budget.householdbook.domain.usecase.UpdateDisplayNameUseCase
 import com.budget.householdbook.domain.usecase.LoadSharedMembersUseCase
 import com.budget.householdbook.domain.usecase.RemoveSharedMemberUseCase
 import com.budget.householdbook.domain.usecase.IsKbAutoInquiryReadyUseCase
@@ -211,6 +212,7 @@ val useCaseModule = module {
     factoryOf(::LeaveSharedSpaceUseCase)
     factoryOf(::TransferOwnershipUseCase)
     factoryOf(::DeleteAccountUseCase)
+    factoryOf(::UpdateDisplayNameUseCase)
     factoryOf(::SignOutGoogleUseCase)
     factoryOf(::SelectSpaceUseCase)
     factoryOf(::UpdateThemeModeUseCase)

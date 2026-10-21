@@ -51,7 +51,7 @@ class SeedInitialDataUseCase(
                         type = SpaceType.SHARED,
                         billingStartDay = 1,
                         targetBudgetAmount = 1_500_000L,
-                        memberNamesCsv = "나, 짝꿍",
+                        memberNamesCsv = "나",
                         inviteCode = null,
                         isRemoteShared = false
                     ),

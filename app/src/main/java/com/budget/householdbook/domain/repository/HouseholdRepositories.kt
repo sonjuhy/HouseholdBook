@@ -168,6 +168,10 @@ interface SharedSyncRepository {
     suspend fun cancelInvitation(partnerEmail: String): Result<SharedRoomInfo>
     suspend fun removeMember(memberEmail: String): Result<SharedRoomInfo>
     suspend fun leaveRoom(): Result<Unit>
+    /** 로그인한 구글 계정의 프로필 이름 (로그인하지 않았거나 이름이 없으면 null) */
+    fun currentGoogleDisplayName(): String?
+    /** 장부에 표시할 내 이름을 내 프로필·공유 장부 멤버 명단에 반영 (로그인하지 않았으면 아무것도 안 함) */
+    suspend fun updateDisplayName(name: String): Result<Unit>
     /** 방장 넘기기 (방장 → 함께 쓰는 중인 멤버) */
     suspend fun transferOwnership(newOwnerEmail: String): Result<SharedRoomInfo>
 

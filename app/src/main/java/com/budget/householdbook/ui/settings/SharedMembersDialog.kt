@@ -180,7 +180,7 @@ private fun MemberList(
                 text = if (info.ownershipCandidates.isNotEmpty()) {
                     "방장은 나갈 수 없어요. 다른 멤버에게 방장을 넘기면 나가거나 회원 탈퇴를 할 수 있어요."
                 } else {
-                    "함께 쓰는 멤버가 없으면 플랜을 '기본 (혼자 쓰기)'로 바꿔 공유를 끝낼 수 있어요."
+                    "함께 쓰는 멤버가 없으면 '혼자 쓰기'로 바꿔 공유를 끝낼 수 있어요."
                 },
                 fontSize = 11.sp,
                 lineHeight = 16.sp,

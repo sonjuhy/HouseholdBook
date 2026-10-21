@@ -323,3 +323,12 @@
 - **앱**: 설정 > `함께 쓰는 멤버 관리` 다이얼로그 — 상태 배지, 초대 취소(초대장도 CANCELED), 내보내기·나가기(확인 다이얼로그). 내보내지거나 나간 기기는 실시간 연결을 끊고 공통 생활비를 혼자 쓰기로 전환(기록 유지), 나간 사람은 다음 로그인 때 예전 방으로 다시 연결되지 않도록 프로필 초대번호를 새로 발급
 - **검증**: 단위 74건(`SharedRoomMembersTest` 5건), 계측 12건(`SharedMembersDialogTest` 2건), Firestore 규칙 22건 통과
 - **미확인**: 실제 Firebase에서 두 계정으로 내보내기·나가기 — 구글 로그인 설정(16단계)과 **새 규칙 배포** 후 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 2-1로 확인 필요
+
+---
+
+## 18단계: Firebase 구글 로그인 설정 완료 (2026-10-21)
+- Firebase CLI로 로그인한 뒤 Android 앱(`<firebase-android-app-id>`)에 디버그 키 SHA-1·SHA-256 등록 (등록 전에는 SHA가 하나도 없었음 → `INVALID_CERT_HASH`의 원인)
+- Authentication에서 Google 로그인 사용 설정
+- `firebase apps:sdkconfig`로 받은 설정 파일에는 OAuth 클라이언트가 계속 비어 있었고, **콘솔에서 직접 받은 `google-services.json`에는 Android(유형 1, 디버그 SHA-1 일치)·웹(유형 3) 클라이언트가 모두 들어 있어** 이 파일로 교체 (기존 파일은 백업)
+- 확인: 다시 빌드한 앱에서 구글 로그인을 누르면 Google Play 서비스의 계정 선택·추가 화면이 정상적으로 열림. 에뮬레이터에 구글 계정이 없어 실제 로그인 완료는 사용자 확인 필요
+- 17단계의 새 Firestore 보안 규칙(멤버 전용 접근 + 방장만 내보내기)을 `firebase deploy --only firestore:rules`로 `<firebase-project-id>`에 배포 (배포 전 dry-run으로 서버 컴파일 확인)

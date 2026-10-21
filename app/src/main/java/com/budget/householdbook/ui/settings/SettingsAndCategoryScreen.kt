@@ -40,6 +40,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +75,7 @@ import com.budget.householdbook.domain.model.ThemeMode
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.UserTier
 import com.budget.householdbook.ui.HouseholdUiState
+import com.budget.householdbook.ui.AccountDeletionState
 import com.budget.householdbook.ui.SharedMembersState
 import com.budget.householdbook.ui.theme.ExpenseCoral
 import com.budget.householdbook.ui.theme.IncomeBlue
@@ -112,7 +114,11 @@ fun SettingsAndCategoryScreen(
     onLoadSharedMembers: () -> Unit,
     onCancelInvitation: (email: String) -> Unit,
     onRemoveSharedMember: (email: String) -> Unit,
-    onLeaveSharedSpace: () -> Unit
+    onTransferOwnership: (email: String, name: String) -> Unit,
+    onLeaveSharedSpace: () -> Unit,
+    accountDeletionState: AccountDeletionState,
+    onDeleteAccount: (wipeLocalData: Boolean) -> Unit,
+    onDismissDeleteAccount: () -> Unit
 ) {
     val context = LocalContext.current
     // 초대번호·멤버는 현재 선택된 공간과 무관하게 항상 '공통 생활비' 공간 기준
@@ -138,6 +144,11 @@ fun SettingsAndCategoryScreen(
     var showInstitutionPicker by remember { mutableStateOf(false) }
     var showSourceExclusion by remember { mutableStateOf(false) }
     var showSharedMembers by remember { mutableStateOf(false) }
+    var showDeleteAccount by remember { mutableStateOf(false) }
+    // 탈퇴가 끝나 로그아웃되면 탈퇴 창도 닫음 (다음 로그인 때 다시 뜨지 않도록)
+    LaunchedEffect(uiState.settings.isLoggedIn) {
+        if (!uiState.settings.isLoggedIn) showDeleteAccount = false
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -233,6 +244,14 @@ fun SettingsAndCategoryScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        // 회원 탈퇴 (자주 쓰지 않으므로 카드 맨 아래 작은 글씨)
+                        TextButton(
+                            onClick = { showDeleteAccount = true },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("회원 탈퇴", fontSize = 12.sp, color = IosSystemGray, maxLines = 1, softWrap = false)
+                        }
                     } else {
                         Text(
                             text = "구글 계정으로 로그인하고 시작하기",
@@ -1004,11 +1023,24 @@ fun SettingsAndCategoryScreen(
             },
             onCancelInvitation = onCancelInvitation,
             onRemoveMember = onRemoveSharedMember,
+            onTransferOwnership = onTransferOwnership,
             onLeave = {
                 onLeaveSharedSpace()
                 showSharedMembers = false
             },
             onDismiss = { showSharedMembers = false }
+        )
+    }
+
+    if (showDeleteAccount && uiState.settings.isLoggedIn) {
+        DeleteAccountDialog(
+            email = uiState.settings.userEmail,
+            state = accountDeletionState,
+            onConfirm = onDeleteAccount,
+            onDismiss = {
+                showDeleteAccount = false
+                onDismissDeleteAccount()
+            }
         )
     }
 

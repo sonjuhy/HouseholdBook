@@ -68,4 +68,7 @@ class FirebaseSharedSyncRepository(
     override suspend fun cancelInvitation(partnerEmail: String): Result<SharedRoomInfo> = syncManager.cancelInvitation(partnerEmail)
     override suspend fun removeMember(memberEmail: String): Result<SharedRoomInfo> = syncManager.removeMember(memberEmail)
     override suspend fun leaveRoom(): Result<Unit> = syncManager.leaveRoom()
+    override suspend fun transferOwnership(newOwnerEmail: String): Result<SharedRoomInfo> =
+        syncManager.transferOwnership(newOwnerEmail)
+    override suspend fun deleteAccount(uiHost: Any?): Result<Unit> = syncManager.deleteAccount(uiHost as? Activity)
 }

@@ -29,6 +29,13 @@ data class SharedRoomInfo(
     fun canRemove(member: SharedRoomMember) = amIOwner && member.status == MemberStatus.JOINED && !member.isMe
     val canLeave: Boolean get() = !amIOwner
 
+    /** 방장은 이미 함께 쓰고 있는 다른 멤버에게만 넘길 수 있음 (수락 대기 중인 사람은 불가) */
+    fun canTransferOwnership(member: SharedRoomMember) = amIOwner && member.status == MemberStatus.JOINED && !member.isMe
+    val ownershipCandidates: List<SharedRoomMember> get() = members.filter { canTransferOwnership(it) }
+
+    /** 함께 쓰는 멤버가 남아 있는 방장은 탈퇴 전에 방장을 넘겨야 함 (공유 장부가 통째로 사라지지 않도록) */
+    val mustTransferBeforeLeaving: Boolean get() = ownershipCandidates.isNotEmpty()
+
     /** 장부에 표시할 멤버 이름 목록 (참여한 사람만): "나, 짝꿍" */
     fun joinedNamesCsv(): String =
         members.filter { it.status != MemberStatus.INVITED }.joinToString(", ") { it.name }

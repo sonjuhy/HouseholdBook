@@ -56,7 +56,9 @@ data class AccountUseCases(
     val loadMembers: LoadSharedMembersUseCase,
     val cancelInvitation: CancelInvitationUseCase,
     val removeMember: RemoveSharedMemberUseCase,
-    val leaveSharedSpace: LeaveSharedSpaceUseCase
+    val leaveSharedSpace: LeaveSharedSpaceUseCase,
+    val transferOwnership: TransferOwnershipUseCase,
+    val deleteAccount: DeleteAccountUseCase
 )
 
 /** 공간 전환·예산·화면 스타일·무시 키워드 등 설정 */

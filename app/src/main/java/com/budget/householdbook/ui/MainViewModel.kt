@@ -543,6 +543,41 @@ class MainViewModel(
         }
     }
 
+    fun transferOwnership(email: String, name: String) = runMemberAction(
+        action = { account.transferOwnership(email) },
+        successMessage = "'$name' 님에게 방장을 넘겼습니다. 이제 공유 장부에서 나가거나 탈퇴할 수 있습니다."
+    )
+
+    // ---------------- 회원 탈퇴 ----------------
+
+    private val _accountDeletion = MutableStateFlow<AccountDeletionState>(AccountDeletionState.Idle)
+    val accountDeletion: StateFlow<AccountDeletionState> = _accountDeletion.asStateFlow()
+
+    /**
+     * @param activity 본인 재확인용 구글 인증 창을 띄울 Activity
+     * @param wipeLocalData 이 휴대폰의 기록도 지울지 (지우면 앱이 종료됨)
+     */
+    fun deleteAccount(activity: Any?, wipeLocalData: Boolean) {
+        if (_accountDeletion.value == AccountDeletionState.InProgress) return
+        viewModelScope.launch {
+            _accountDeletion.value = AccountDeletionState.InProgress
+            account.deleteAccount(activity, wipeLocalData)
+                .onSuccess {
+                    _sharedMembers.value = SharedMembersState.Idle
+                    _accountDeletion.value = AccountDeletionState.Idle
+                    _snackbarMessage.value = "회원 탈퇴가 완료되었습니다. 이 휴대폰의 기록은 로그인 없이 계속 쓸 수 있습니다."
+                }
+                .onFailure {
+                    _accountDeletion.value = AccountDeletionState.Failed(it.message ?: "회원 탈퇴 중 문제가 발생했습니다.")
+                }
+        }
+    }
+
+    /** 탈퇴 창을 닫을 때 지난 오류 문구 지우기 */
+    fun clearAccountDeletionState() {
+        if (_accountDeletion.value is AccountDeletionState.Failed) _accountDeletion.value = AccountDeletionState.Idle
+    }
+
     private fun runMemberAction(action: suspend () -> Result<SharedRoomInfo>, successMessage: String) {
         viewModelScope.launch {
             action()
@@ -687,6 +722,12 @@ data class UndoSnackbar(
 )
 
 /** 멤버 관리 화면 상태 */
+sealed interface AccountDeletionState {
+    data object Idle : AccountDeletionState
+    data object InProgress : AccountDeletionState
+    data class Failed(val message: String) : AccountDeletionState
+}
+
 sealed interface SharedMembersState {
     data object Idle : SharedMembersState
     data object Loading : SharedMembersState

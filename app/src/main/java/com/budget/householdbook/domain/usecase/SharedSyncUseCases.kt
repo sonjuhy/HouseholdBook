@@ -6,6 +6,7 @@ import com.budget.householdbook.data.sync.GoogleLoginResult
 import com.budget.householdbook.domain.model.SharedSyncOutcome
 import com.budget.householdbook.domain.model.UserTier
 import com.budget.householdbook.domain.repository.LedgerSpaceRepository
+import com.budget.householdbook.domain.repository.LocalDataResetter
 import com.budget.householdbook.domain.repository.SettingsRepository
 import com.budget.householdbook.domain.repository.SharedSyncRepository
 import com.budget.householdbook.domain.repository.TransactionRepository
@@ -237,4 +238,38 @@ class RemoveSharedMemberUseCase(private val sharedSyncRepository: SharedSyncRepo
 /** 공유 장부에서 나가기 (방장이 아닌 멤버). 내 휴대폰 기록은 유지 */
 class LeaveSharedSpaceUseCase(private val sharedSyncRepository: SharedSyncRepository) {
     suspend operator fun invoke(): Result<Unit> = sharedSyncRepository.leaveRoom()
+}
+
+/** 방장 넘기기 (방장 → 함께 쓰는 중인 멤버) */
+class TransferOwnershipUseCase(private val sharedSyncRepository: SharedSyncRepository) {
+    suspend operator fun invoke(newOwnerEmail: String): Result<SharedRoomInfo> =
+        sharedSyncRepository.transferOwnership(newOwnerEmail)
+}
+
+/**
+ * 회원 탈퇴
+ * - 클라우드 정리와 로그인 계정 삭제가 끝난 뒤에만 이 휴대폰을 로그아웃·혼자 쓰기 상태로 돌림
+ *   (중간에 실패하면 계속 로그인된 상태라 다시 시도할 수 있음)
+ * - [wipeLocalData]이면 이 휴대폰의 가계부 기록도 모두 지움 (앱이 종료되고, 다시 열면 처음 상태)
+ */
+class DeleteAccountUseCase(
+    private val settingsRepository: SettingsRepository,
+    private val spaceRepository: LedgerSpaceRepository,
+    private val sharedSyncRepository: SharedSyncRepository,
+    private val localDataResetter: LocalDataResetter
+) {
+    suspend operator fun invoke(uiHost: Any?, wipeLocalData: Boolean): Result<Unit> {
+        val result = sharedSyncRepository.deleteAccount(uiHost)
+        result.onSuccess {
+            settingsRepository.clearGoogleLogin()
+            spaceRepository.updateShareConfig(
+                spaceId = AppDatabase.SPACE_ID_SHARED,
+                memberNamesCsv = "나 (혼자 쓰기)",
+                inviteCode = null,
+                isShared = false
+            )
+            if (wipeLocalData) localDataResetter.wipeAllLocalData()
+        }
+        return result
+    }
 }

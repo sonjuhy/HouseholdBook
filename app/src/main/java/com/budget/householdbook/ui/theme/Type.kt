@@ -4,6 +4,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.sp
 
@@ -24,14 +25,23 @@ val KoreanHeadingLineBreak = LineBreak.Heading.copy(
     wordBreak = LineBreak.WordBreak.Phrase
 )
 
+/**
+ * 앱의 글은 모두 한국어이므로 글자 언어를 한국어로 고정
+ * - Android의 어절(Phrase) 단위 줄바꿈은 글자 언어가 한국어·일본어일 때만 동작하므로,
+ *   휴대폰 언어가 영어 등이어도 단어 중간에서 끊기지 않도록 함
+ */
+private val KoreanLocale = LocaleList("ko-KR")
+
 private val BaseKoreanTextStyle = TextStyle(
     fontFamily = FontFamily.Default,
-    lineBreak = KoreanPhraseLineBreak
+    lineBreak = KoreanPhraseLineBreak,
+    localeList = KoreanLocale
 )
 
 private val BaseKoreanHeadingStyle = TextStyle(
     fontFamily = FontFamily.Default,
-    lineBreak = KoreanHeadingLineBreak
+    lineBreak = KoreanHeadingLineBreak,
+    localeList = KoreanLocale
 )
 
 private val DefaultTypography = Typography()

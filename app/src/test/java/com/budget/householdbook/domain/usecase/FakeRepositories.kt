@@ -28,6 +28,7 @@ import com.budget.householdbook.domain.repository.MealRepository
 import com.budget.householdbook.domain.repository.MealWidgetRefresher
 import com.budget.householdbook.domain.repository.PendingQueueRepository
 import com.budget.householdbook.domain.repository.SettingsRepository
+import com.budget.householdbook.domain.repository.LocalDataResetter
 import com.budget.householdbook.domain.repository.SharedSyncRepository
 import com.budget.householdbook.domain.repository.TransactionRepository
 import com.budget.householdbook.domain.repository.TransactionRunner
@@ -291,6 +292,22 @@ class FakeSharedSyncRepository : SharedSyncRepository {
         left = true
         return Result.success(Unit)
     }
+    var newOwnerEmail: String? = null
+    override suspend fun transferOwnership(newOwnerEmail: String): Result<SharedRoomInfo> {
+        this.newOwnerEmail = newOwnerEmail
+        return loadRoomMembers()
+    }
+    var deleteAccountResult: Result<Unit> = Result.success(Unit)
+    var deleteAccountCalls = 0
+    override suspend fun deleteAccount(uiHost: Any?): Result<Unit> {
+        deleteAccountCalls++
+        return deleteAccountResult
+    }
+}
+
+class FakeLocalDataResetter : LocalDataResetter {
+    var wiped = false
+    override fun wipeAllLocalData() { wiped = true }
 }
 
 class FakeKbQuickInquiryRepository(

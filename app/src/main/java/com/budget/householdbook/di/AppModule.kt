@@ -28,6 +28,8 @@ import com.budget.householdbook.domain.repository.MealWidgetRefresher
 import com.budget.householdbook.domain.repository.PendingQueueRepository
 import com.budget.householdbook.domain.repository.SettingsRepository
 import com.budget.householdbook.domain.repository.SharedSyncRepository
+import com.budget.householdbook.domain.repository.LocalDataResetter
+import com.budget.householdbook.data.local.AndroidLocalDataResetter
 import com.budget.householdbook.domain.repository.TransactionRepository
 import com.budget.householdbook.domain.repository.TransactionRunner
 import com.budget.householdbook.domain.usecase.AccountUseCases
@@ -62,6 +64,8 @@ import com.budget.householdbook.domain.usecase.InitializeAppUseCase
 import com.budget.householdbook.domain.usecase.InvitePartnerUseCase
 import com.budget.householdbook.domain.usecase.CancelInvitationUseCase
 import com.budget.householdbook.domain.usecase.LeaveSharedSpaceUseCase
+import com.budget.householdbook.domain.usecase.TransferOwnershipUseCase
+import com.budget.householdbook.domain.usecase.DeleteAccountUseCase
 import com.budget.householdbook.domain.usecase.LoadSharedMembersUseCase
 import com.budget.householdbook.domain.usecase.RemoveSharedMemberUseCase
 import com.budget.householdbook.domain.usecase.IsKbAutoInquiryReadyUseCase
@@ -136,6 +140,7 @@ val repositoryModule = module {
     singleOf(::RoomMealRepository) { bind<MealRepository>() }
     singleOf(::RoomAutomationRuleRepository) { bind<AutomationRuleRepository>() }
     singleOf(::FirebaseSharedSyncRepository) { bind<SharedSyncRepository>() }
+    single<LocalDataResetter> { AndroidLocalDataResetter(androidContext()) }
     // 은행별 빠른조회 연동 목록 (은행을 추가하면 여기에 등록)
     single<KbQuickInquiryRepository> {
         KbQuickInquiryRepositoryImpl(
@@ -202,6 +207,8 @@ val useCaseModule = module {
     factoryOf(::CancelInvitationUseCase)
     factoryOf(::RemoveSharedMemberUseCase)
     factoryOf(::LeaveSharedSpaceUseCase)
+    factoryOf(::TransferOwnershipUseCase)
+    factoryOf(::DeleteAccountUseCase)
     factoryOf(::SignOutGoogleUseCase)
     factoryOf(::SelectSpaceUseCase)
     factoryOf(::UpdateThemeModeUseCase)

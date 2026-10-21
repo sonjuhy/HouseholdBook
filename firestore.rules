@@ -117,6 +117,28 @@ service cloud.firestore {
           && !removedOthers.hasAny(oldJ);
       }
 
+      // 방장은 ownerEmail로 판단 (방장을 넘겨받을 때 새 방장의 uid를 모를 수 있어 ownerUid는 참고용)
+      function isOwnerOf(data) {
+        return data.ownerEmail == myEmail();
+      }
+
+      // 방장 정보 변경
+      // - 그대로 두기 (누구나)
+      // - 방장 넘기기: 지금 방장만, 이미 참여한 다른 멤버에게만, 같은 변경에서 명단은 건드리지 않음
+      // - 방장이 자기 uid 기록: 넘겨받은 새 방장이 ownerUid를 자신의 uid로 채움
+      function ownerChangeAllowed() {
+        let before = resource.data;
+        let after = request.resource.data;
+        return (after.ownerEmail == before.ownerEmail && after.ownerUid == before.ownerUid)
+          || (isOwnerOf(before)
+            && after.ownerEmail != before.ownerEmail
+            && after.ownerEmail in joinedOf(before)
+            && after.diff(before).affectedKeys().hasOnly(['ownerEmail', 'ownerUid', 'updatedAt']))
+          || (isOwnerOf(before)
+            && after.ownerEmail == before.ownerEmail
+            && after.ownerUid == request.auth.uid);
+      }
+
       // 방을 만든 사람이 방장이며, 처음에는 본인만 멤버(참여 완료)
       allow create: if signedInWithGoogle()
         && isValidInviteCode(inviteCode)
@@ -126,18 +148,18 @@ service cloud.firestore {
         && request.resource.data.memberEmails == [myEmail()]
         && joinedOf(request.resource.data) in [[], [myEmail()]];
 
-      // 기존 멤버만 변경 가능. 방장 정보는 바꿀 수 없고 방장은 내보낼 수 없으며,
+      // 기존 멤버만 변경 가능. 방장 정보는 방장 넘기기로만 바뀌고 방장은 내보낼 수 없으며,
       // 참여한 멤버는 항상 memberEmails 안에 있어야 함
       allow update: if signedInWithGoogle()
         && myEmail() in resource.data.memberEmails
         && isValidRoom(request.resource.data)
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.ownerEmail == resource.data.ownerEmail
-        && resource.data.ownerEmail in request.resource.data.memberEmails
+        && ownerChangeAllowed()
+        && request.resource.data.ownerEmail in request.resource.data.memberEmails
         && request.resource.data.memberEmails.toSet().hasAll(joinedOf(request.resource.data))
-        && (resource.data.ownerUid == request.auth.uid || memberChangeAllowedForNonOwner());
+        && (isOwnerOf(resource.data) || memberChangeAllowedForNonOwner());
 
-      allow delete: if signedInWithGoogle() && resource.data.ownerUid == request.auth.uid;
+      // 방 삭제는 방장만 (회원 탈퇴 시 혼자 남은 방장의 공유 장부 정리)
+      allow delete: if signedInWithGoogle() && isOwnerOf(resource.data);
 
       // 공통 생활비 거래 내역: 방 멤버만 읽고 쓰기
       match /transactions/{remoteId} {

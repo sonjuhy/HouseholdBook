@@ -8,7 +8,19 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  arrayUnion,
+  arrayRemove,
+  collection,
+  query,
+  where,
+} from 'firebase/firestore';
 
 const ROOM = 'HB-ABCD-EFGH';
 const OWNER = { uid: 'owner-uid', email: 'owner@gmail.com' };
@@ -349,3 +361,119 @@ describe('멤버 관리 (초대 취소 · 내보내기 · 나가기)', () => {
   });
 });
 
+describe('방장 넘기기 · 회원 탈퇴', () => {
+  const INVITED = { uid: 'invited-uid', email: 'invited@gmail.com' };
+  const roomRef = (db) => doc(db, 'shared_spaces', ROOM);
+
+  /** 방장 + 참여한 짝꿍 + 아직 참여 전인 초대 대상, 방장이 보낸 초대장 2장 */
+  async function seedTransferRoom() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(roomRef(db), {
+        ...roomData([OWNER.email, PARTNER.email, INVITED.email]),
+        joinedEmails: [OWNER.email, PARTNER.email],
+      });
+      await setDoc(doc(db, 'shared_spaces', ROOM, 'transactions', 'tx-1'), transaction('tx-1'));
+      for (const target of [PARTNER, INVITED]) {
+        await setDoc(doc(db, 'invitations', `${ROOM}__${target.email}`), {
+          inviteCode: ROOM,
+          inviterUid: OWNER.uid,
+          inviterEmail: OWNER.email,
+          partnerEmail: target.email,
+          status: target === PARTNER ? 'ACCEPTED' : 'PENDING',
+          createdAt: 1,
+        });
+      }
+      await setDoc(doc(db, 'users', OWNER.uid), { uid: OWNER.uid, email: OWNER.email, userTier: 'PRO' });
+    });
+  }
+
+  test('방장은 참여한 멤버에게 방장을 넘기고, 넘긴 뒤에는 나갈 수 있다', async () => {
+    await seedTransferRoom();
+    // 새 방장의 uid를 모르면 빈 값으로 넘기고, 새 방장이 자기 uid를 채움
+    await assertSucceeds(
+      updateDoc(roomRef(googleUser(OWNER)), { ownerEmail: PARTNER.email, ownerUid: '', updatedAt: 2 })
+    );
+    await assertSucceeds(updateDoc(roomRef(googleUser(PARTNER)), { ownerUid: PARTNER.uid }));
+    await assertSucceeds(
+      updateDoc(roomRef(googleUser(OWNER)), {
+        memberEmails: arrayRemove(OWNER.email),
+        joinedEmails: arrayRemove(OWNER.email),
+      })
+    );
+    // 새 방장은 방장 권한으로 초대를 정리할 수 있음
+    await assertSucceeds(updateDoc(roomRef(googleUser(PARTNER)), { memberEmails: arrayRemove(INVITED.email) }));
+  });
+
+  test('방장은 참여 전 초대 대상이나 명단 밖 사람에게 넘길 수 없고, 넘기면서 명단을 바꿀 수 없다', async () => {
+    await seedTransferRoom();
+    const owner = googleUser(OWNER);
+    await assertFails(updateDoc(roomRef(owner), { ownerEmail: INVITED.email, ownerUid: INVITED.uid }));
+    await assertFails(updateDoc(roomRef(owner), { ownerEmail: STRANGER.email, ownerUid: STRANGER.uid }));
+    await assertFails(
+      updateDoc(roomRef(owner), {
+        ownerEmail: PARTNER.email,
+        ownerUid: PARTNER.uid,
+        memberEmails: arrayRemove(OWNER.email),
+        joinedEmails: arrayRemove(OWNER.email),
+      })
+    );
+  });
+
+  test('방장이 아니면 방장을 가져오거나 방장 uid를 바꾸거나 방을 지울 수 없다', async () => {
+    await seedTransferRoom();
+    const partner = googleUser(PARTNER);
+    await assertFails(updateDoc(roomRef(partner), { ownerEmail: PARTNER.email, ownerUid: PARTNER.uid }));
+    await assertFails(updateDoc(roomRef(partner), { ownerUid: PARTNER.uid }));
+    await assertFails(deleteDoc(roomRef(partner)));
+  });
+
+  test('방장을 넘긴 사람은 더 이상 방장 권한이 없다', async () => {
+    await seedTransferRoom();
+    await assertSucceeds(updateDoc(roomRef(googleUser(OWNER)), { ownerEmail: PARTNER.email, ownerUid: PARTNER.uid }));
+    const formerOwner = googleUser(OWNER);
+    await assertFails(
+      updateDoc(roomRef(formerOwner), {
+        memberEmails: arrayRemove(PARTNER.email),
+        joinedEmails: arrayRemove(PARTNER.email),
+      })
+    );
+    await assertFails(updateDoc(roomRef(formerOwner), { ownerEmail: OWNER.email, ownerUid: OWNER.uid }));
+    await assertFails(deleteDoc(roomRef(formerOwner)));
+  });
+
+  test('혼자 남은 방장은 탈퇴하며 공유 거래·방·보낸 초대장·내 프로필을 지울 수 있다', async () => {
+    await seedTransferRoom();
+    // 짝꿍이 먼저 나간 상태
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(roomRef(ctx.firestore()), {
+        memberEmails: [OWNER.email, INVITED.email],
+        joinedEmails: [OWNER.email],
+      });
+    });
+    const owner = googleUser(OWNER);
+    const txs = await assertSucceeds(getDocs(collection(owner, 'shared_spaces', ROOM, 'transactions')));
+    for (const d of txs.docs) await assertSucceeds(deleteDoc(d.ref));
+    await assertSucceeds(deleteDoc(roomRef(owner)));
+
+    const sent = await assertSucceeds(getDocs(query(collection(owner, 'invitations'), where('inviterUid', '==', OWNER.uid))));
+    assertEqualCount(sent.size, 2);
+    for (const d of sent.docs) await assertSucceeds(deleteDoc(d.ref));
+    await assertSucceeds(deleteDoc(doc(owner, 'users', OWNER.uid)));
+  });
+
+  test('멤버는 탈퇴하며 자신이 받은 초대장을 찾아 지울 수 있지만 남의 초대장은 조회할 수 없다', async () => {
+    await seedTransferRoom();
+    const partner = googleUser(PARTNER);
+    const received = await assertSucceeds(
+      getDocs(query(collection(partner, 'invitations'), where('partnerEmail', '==', PARTNER.email)))
+    );
+    assertEqualCount(received.size, 1);
+    for (const d of received.docs) await assertSucceeds(deleteDoc(d.ref));
+    await assertFails(getDocs(query(collection(partner, 'invitations'), where('inviterUid', '==', OWNER.uid))));
+  });
+});
+
+function assertEqualCount(actual, expected) {
+  if (actual !== expected) throw new Error(`expected ${expected} documents but got ${actual}`);
+}

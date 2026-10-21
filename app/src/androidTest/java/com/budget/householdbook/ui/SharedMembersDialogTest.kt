@@ -27,6 +27,7 @@ class SharedMembersDialogTest {
         var canceled: String? = null
         var removed: String? = null
         var left = false
+        var newOwner: String? = null
     }
 
     private fun show(myEmail: String): Calls {
@@ -47,6 +48,7 @@ class SharedMembersDialogTest {
                     onInviteNew = {},
                     onCancelInvitation = { calls.canceled = it },
                     onRemoveMember = { calls.removed = it },
+                    onTransferOwnership = { email, _ -> calls.newOwner = email },
                     onLeave = { calls.left = true },
                     onDismiss = {}
                 )
@@ -79,5 +81,26 @@ class SharedMembersDialogTest {
         composeRule.onNodeWithText("이 공유 장부에서 나가기").performClick()
         composeRule.onNodeWithText("나가기").performClick()
         assertTrue(calls.left)
+    }
+
+    @Test
+    fun 방장은_함께_쓰는_멤버를_골라_확인_후_방장을_넘긴다() {
+        val calls = show(owner)
+
+        composeRule.onNodeWithText("방장 넘기기").performClick()
+        // 수락 대기 중인 사람은 고를 수 없음
+        composeRule.onNodeWithText("누구에게 방장을 넘길까요?").assertExists()
+        composeRule.onNodeWithText("동생").assertDoesNotExist()
+        composeRule.onNodeWithText("아빠").performClick()
+
+        assertEquals(null, calls.newOwner)
+        composeRule.onNodeWithText("넘기기").performClick()
+        assertEquals(partner, calls.newOwner)
+    }
+
+    @Test
+    fun 방장이_아니면_방장_넘기기가_보이지_않는다() {
+        show(partner)
+        composeRule.onNodeWithText("방장 넘기기").assertDoesNotExist()
     }
 }

@@ -168,6 +168,19 @@ interface SharedSyncRepository {
     suspend fun cancelInvitation(partnerEmail: String): Result<SharedRoomInfo>
     suspend fun removeMember(memberEmail: String): Result<SharedRoomInfo>
     suspend fun leaveRoom(): Result<Unit>
+    /** 방장 넘기기 (방장 → 함께 쓰는 중인 멤버) */
+    suspend fun transferOwnership(newOwnerEmail: String): Result<SharedRoomInfo>
+
+    /**
+     * 회원 탈퇴: 클라우드의 내 정보(프로필·초대장·공유 장부 참여)와 로그인 계정 삭제
+     * @param uiHost 본인 재확인용 구글 인증 창을 띄울 화면
+     */
+    suspend fun deleteAccount(uiHost: Any?): Result<Unit>
+}
+
+/** 이 휴대폰에 저장된 앱 데이터 전체 삭제 (회원 탈퇴 시 선택). 호출 후 앱이 종료될 수 있음 */
+interface LocalDataResetter {
+    fun wipeAllLocalData()
 }
 
 /** [Beta] KB국민은행 무로그인 빠른조회 (암호화 자격증명 + 스크래퍼) */

@@ -97,6 +97,7 @@ fun HouseholdNavHost(
 
         composable<SettingsRoute> {
             val sharedMembersState by viewModel.sharedMembers.collectAsStateWithLifecycle()
+            val accountDeletionState by viewModel.accountDeletion.collectAsStateWithLifecycle()
             val context = LocalContext.current
             SettingsAndCategoryScreen(
                 uiState = uiState,
@@ -138,7 +139,11 @@ fun HouseholdNavHost(
                 onLoadSharedMembers = { viewModel.loadSharedMembers() },
                 onCancelInvitation = { viewModel.cancelInvitation(it) },
                 onRemoveSharedMember = { viewModel.removeSharedMember(it) },
-                onLeaveSharedSpace = { viewModel.leaveSharedSpace() }
+                onTransferOwnership = { email, name -> viewModel.transferOwnership(email, name) },
+                onLeaveSharedSpace = { viewModel.leaveSharedSpace() },
+                accountDeletionState = accountDeletionState,
+                onDeleteAccount = { wipe -> viewModel.deleteAccount(context as? Activity, wipe) },
+                onDismissDeleteAccount = { viewModel.clearAccountDeletionState() }
             )
         }
     }

@@ -23,6 +23,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.budget.householdbook.domain.model.SharedRoomMembers
@@ -297,11 +298,27 @@ class RemoteSyncManager(
             val userDocRef = userProfileDoc(firestore, uid)
 
             // 2. 먼저 내 구글 이메일로 도착한 '함께 쓰기 초대장'이 있는지 확인
-            val inviteSnap = findPendingInvitation(firestore, email)
+            //    (방이 사라졌거나 명단에서 빠진 초대장은 거절 처리하고 일반 로그인으로 진행)
+            val inviteSnap = findPendingInvitation(firestore, email)?.takeIf { invite ->
+                val code = invite.getString("inviteCode")?.takeIf { isValidInviteCode(it) }
+                val usable = code != null && try {
+                    ensureRoomMembership(firestore, code, uid, email, memberNamesCsv = null, allowCreate = false)
+                    true
+                } catch (e: NotRoomMemberException) {
+                    false // 인터넷 오류 등 다른 실패는 그대로 로그인 실패로 알림
+                }
+                if (!usable) {
+                    runCatching {
+                        invite.reference.set(
+                            mapOf("status" to "DECLINED", "partnerUid" to uid),
+                            SetOptions.merge()
+                        ).await()
+                    }
+                }
+                usable
+            }
             if (inviteSnap != null) {
-                val invitedCode = inviteSnap.getString("inviteCode")
-                    ?.takeIf { isValidInviteCode(it) }
-                    ?: throw IllegalStateException("초대장에 초대번호가 없습니다. 초대를 다시 요청해주세요.")
+                val invitedCode = inviteSnap.getString("inviteCode")!!
                 val inviterName = inviteSnap.getString("inviterName") ?: "파트너"
                 val memberNamesCsv = inviteSnap.getString("memberNamesCsv")
                     ?.takeIf { it.isNotBlank() }
@@ -545,7 +562,7 @@ class RemoteSyncManager(
                 "updatedAt" to now
             )
             // 참여 기록이 없던 예전 방: 지금까지의 멤버는 모두 참여한 것으로 기록 (방장만 가능)
-            if (!roomSnap.contains("joinedEmails") && roomSnap.getString("ownerUid") == user.uid) {
+            if (!roomSnap.contains("joinedEmails") && roomSnap.getString("ownerEmail") == myEmail) {
                 payload["joinedEmails"] = (roomSnap.get("memberEmails") as? List<*>)?.filterIsInstance<String>().orEmpty()
             }
             roomDoc(firestore, cleanCode).set(payload, SetOptions.merge()).await()
@@ -605,7 +622,13 @@ class RemoteSyncManager(
             throw e
         }
         if (!snap.exists()) throw IllegalStateException("아직 공유 장부가 만들어지지 않았습니다. 먼저 상대방을 초대해주세요.")
-        roomInfoFrom(snap, inviteCode, myEmail)
+        val info = roomInfoFrom(snap, inviteCode, myEmail)
+        // 방장을 넘겨받았는데 방 문서에 내 uid가 아직 없으면 채워 둠 (넘길 때 상대 uid를 모를 수 있음)
+        val myUid = currentGoogleUser()?.uid
+        if (info.amIOwner && myUid != null && snap.getString("ownerUid") != myUid) {
+            runCatching { roomDoc(firestore, inviteCode).update("ownerUid", myUid).await() }
+        }
+        info
     }
 
     /** 아직 수락하지 않은 초대를 취소 (멤버 누구나) */
@@ -658,7 +681,7 @@ class RemoteSyncManager(
         val (firestore, inviteCode, myEmail) = requireRoomContext()
         val user = currentGoogleUser() ?: throw IllegalStateException(LOGIN_REQUIRED_MESSAGE)
         val info = loadRoomMembers().getOrThrow()
-        check(info.canLeave) { "방장은 나갈 수 없습니다. 함께 쓰는 멤버를 모두 내보낸 뒤 플랜을 '기본 (혼자 쓰기)'로 바꿔주세요." }
+        check(info.canLeave) { "방장은 나갈 수 없습니다. 다른 멤버에게 방장을 넘긴 뒤 나가주세요." }
 
         roomDoc(firestore, inviteCode).update(
             FieldPath.of("memberEmails"), FieldValue.arrayRemove(myEmail),
@@ -672,6 +695,117 @@ class RemoteSyncManager(
             SetOptions.merge()
         ).await()
         handleNoLongerMember(inviteCode, message = "공유 장부에서 나왔습니다. 이 휴대폰의 기록은 그대로 남아 있습니다.")
+    }
+
+    /**
+     * 방장 넘기기 (방장만, 함께 쓰는 중인 멤버에게만)
+     * - 넘긴 뒤에는 일반 멤버가 되어 나가기·탈퇴를 할 수 있음
+     */
+    suspend fun transferOwnership(newOwnerEmail: String): Result<SharedRoomInfo> = runCatching {
+        val (firestore, inviteCode, _) = requireRoomContext()
+        val target = newOwnerEmail.trim().lowercase()
+        val info = loadRoomMembers().getOrThrow()
+        val member = info.members.firstOrNull { it.email == target }
+            ?: throw IllegalStateException("이미 명단에 없는 멤버입니다.")
+        check(info.canTransferOwnership(member)) { "방장은 함께 쓰는 중인 다른 멤버에게만 넘길 수 있습니다." }
+
+        val ref = roomDoc(firestore, inviteCode)
+        // 참여 기록이 없던 예전 방: 규칙상 '참여한 멤버'에게만 넘길 수 있으므로 먼저 지금 명단을 참여로 기록
+        val snap = ref.get().await()
+        if (!snap.contains("joinedEmails")) {
+            ref.update("joinedEmails", (snap.get("memberEmails") as? List<*>)?.filterIsInstance<String>().orEmpty()).await()
+        }
+        // 새 방장의 uid: 초대를 수락할 때 초대장에 남긴 값. 모르면 비워 두고 새 방장이 멤버 목록을 열 때 채움
+        val newOwnerUid = runCatching {
+            invitationDoc(firestore, inviteCode, target).get().await().getString("partnerUid")
+        }.getOrNull().orEmpty()
+        ref.update(
+            mapOf(
+                "ownerEmail" to target,
+                "ownerUid" to newOwnerUid,
+                "updatedAt" to System.currentTimeMillis()
+            )
+        ).await()
+        refreshLocalMembers(loadRoomMembers().getOrThrow())
+    }
+
+    /**
+     * 회원 탈퇴: 클라우드에 남은 내 정보를 지우고 구글 로그인 계정(Firebase 사용자)을 삭제합니다.
+     * 1. 함께 쓰는 멤버가 남은 방장이면 중단 (먼저 방장 넘기기)
+     * 2. 구글 계정 재확인 (Firebase는 최근에 로그인한 사용자만 삭제를 허용)
+     * 3. 공유 장부 정리: 혼자 남은 방장이면 공유 거래와 방을 삭제, 멤버이면 나가기
+     *    (멤버가 남긴 공통 생활비 기록은 다른 멤버의 장부에 남음)
+     * 4. 내가 보낸·받은 초대장, 내 프로필(`users/{uid}`) 삭제 → 5. Firebase 사용자 삭제
+     *
+     * 이 휴대폰의 기록은 여기서 건드리지 않습니다 (지울지는 호출하는 쪽에서 결정).
+     */
+    suspend fun deleteAccount(activity: Activity?): Result<Unit> = runCatching {
+        if (!isFirebaseConfigured()) throw IllegalStateException("Firebase 연결을 확인해주세요.")
+        val user = currentGoogleUser() ?: throw IllegalStateException(LOGIN_REQUIRED_MESSAGE)
+        val myEmail = user.email.orEmpty().trim().lowercase()
+        val firestore = FirebaseFirestore.getInstance()
+
+        // 1. 지금 연결된 공유 장부 (없거나 이미 멤버가 아니면 정리할 것 없음)
+        val inviteCode = spaceDao.getSpaceById(AppDatabase.SPACE_ID_SHARED)?.inviteCode?.takeIf { isValidInviteCode(it) }
+        val room = inviteCode?.let { code ->
+            runCatching { roomDoc(firestore, code).get().await() }
+                .getOrElse { if (it.isPermissionDenied()) null else throw it }
+                ?.takeIf { it.exists() }
+                ?.let { roomInfoFrom(it, code, myEmail) }
+        }
+        if (room?.mustTransferBeforeLeaving == true) {
+            throw IllegalStateException(
+                "함께 쓰는 멤버가 있어 바로 탈퇴할 수 없습니다. '함께 쓰는 멤버 관리'에서 방장을 넘긴 뒤 다시 시도해주세요."
+            )
+        }
+
+        // 2. 본인 확인
+        if (activity == null) throw IllegalStateException("구글 인증 창을 열 수 없습니다. 앱 화면에서 다시 시도해주세요.")
+        val idToken = requestGoogleIdToken(activity)
+        try {
+            user.reauthenticate(GoogleAuthProvider.getCredential(idToken, null)).await()
+        } catch (e: Exception) {
+            throw IllegalStateException("탈퇴할 구글 계정($myEmail)을 다시 선택해주세요.", e)
+        }
+
+        // 3. 공유 장부 정리
+        stopRealtimeListener()
+        verifiedRoomKey = null
+        if (room != null) {
+            val ref = roomDoc(firestore, room.inviteCode)
+            if (room.amIOwner) {
+                val txRefs = roomTransactions(firestore, room.inviteCode).get().await().documents.map { it.reference }
+                deleteInBatches(firestore, txRefs)
+                ref.delete().await()
+            } else {
+                ref.update(
+                    FieldPath.of("memberEmails"), FieldValue.arrayRemove(myEmail),
+                    FieldPath.of("joinedEmails"), FieldValue.arrayRemove(myEmail),
+                    FieldPath.of("memberNames", myEmail), FieldValue.delete(),
+                    FieldPath.of("updatedAt"), System.currentTimeMillis()
+                ).await()
+            }
+        }
+
+        // 4. 초대장과 프로필
+        val invitations = firestore.collection(INVITATIONS)
+        val sent = invitations.whereEqualTo("inviterUid", user.uid).get().await().documents
+        val received = invitations.whereEqualTo("partnerEmail", myEmail).get().await().documents
+        deleteInBatches(firestore, (sent + received).distinctBy { it.id }.map { it.reference })
+        userProfileDoc(firestore, user.uid).delete().await()
+
+        // 5. 로그인 계정
+        user.delete().await()
+        _lastSyncMessage.value = "회원 탈퇴가 끝났습니다. 내 휴대폰에만 보관 중"
+    }
+
+    /** Firestore 일괄 쓰기는 한 번에 500건까지 */
+    private suspend fun deleteInBatches(firestore: FirebaseFirestore, refs: List<DocumentReference>) {
+        refs.chunked(400).forEach { chunk ->
+            val batch = firestore.batch()
+            chunk.forEach { batch.delete(it) }
+            batch.commit().await()
+        }
     }
 
     private data class RoomContext(val firestore: FirebaseFirestore, val inviteCode: String, val myEmail: String)

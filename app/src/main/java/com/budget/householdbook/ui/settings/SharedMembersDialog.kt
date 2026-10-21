@@ -1,6 +1,7 @@
 package com.budget.householdbook.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,7 @@ import com.budget.householdbook.ui.theme.MealSaverAmber
 /** 확인이 필요한 멤버 관리 동작 */
 private sealed interface PendingMemberAction {
     data class Remove(val member: SharedRoomMember) : PendingMemberAction
+    data class Transfer(val member: SharedRoomMember) : PendingMemberAction
     data object Leave : PendingMemberAction
 }
 
@@ -54,6 +56,7 @@ private sealed interface PendingMemberAction {
  * 함께 쓰는 멤버 관리 다이얼로그
  * - 방장 / 함께 쓰는 중 / 수락 대기 상태를 보여주고
  * - 수락 대기: 초대 취소 (멤버 누구나), 함께 쓰는 중: 내보내기 (방장만), 나: 나가기 (방장이 아닐 때)
+ * - 방장 넘기기: 방장 → 함께 쓰는 중인 멤버 (넘긴 뒤 나가기·탈퇴 가능)
  */
 @Composable
 fun SharedMembersDialog(
@@ -62,10 +65,12 @@ fun SharedMembersDialog(
     onInviteNew: () -> Unit,
     onCancelInvitation: (email: String) -> Unit,
     onRemoveMember: (email: String) -> Unit,
+    onTransferOwnership: (email: String, name: String) -> Unit,
     onLeave: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var confirming by remember { mutableStateOf<PendingMemberAction?>(null) }
+    var choosingNewOwner by remember { mutableStateOf(false) }
 
     confirming?.let { action ->
         ConfirmMemberActionDialog(
@@ -73,11 +78,25 @@ fun SharedMembersDialog(
             onConfirm = {
                 when (action) {
                     is PendingMemberAction.Remove -> onRemoveMember(action.member.email)
+                    is PendingMemberAction.Transfer -> onTransferOwnership(action.member.email, action.member.name)
                     PendingMemberAction.Leave -> onLeave()
                 }
                 confirming = null
             },
             onDismiss = { confirming = null }
+        )
+        return
+    }
+
+    val loadedInfo = (state as? SharedMembersState.Loaded)?.info
+    if (choosingNewOwner && loadedInfo != null) {
+        NewOwnerPickerDialog(
+            candidates = loadedInfo.ownershipCandidates,
+            onPick = {
+                choosingNewOwner = false
+                confirming = PendingMemberAction.Transfer(it)
+            },
+            onDismiss = { choosingNewOwner = false }
         )
         return
     }
@@ -104,6 +123,7 @@ fun SharedMembersDialog(
                     onCancelInvitation = onCancelInvitation,
                     onAskRemove = { confirming = PendingMemberAction.Remove(it) },
                     onAskLeave = { confirming = PendingMemberAction.Leave },
+                    onAskTransfer = { choosingNewOwner = true },
                     onInviteNew = onInviteNew
                 )
             }
@@ -120,6 +140,7 @@ private fun MemberList(
     onCancelInvitation: (String) -> Unit,
     onAskRemove: (SharedRoomMember) -> Unit,
     onAskLeave: () -> Unit,
+    onAskTransfer: () -> Unit,
     onInviteNew: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -143,6 +164,9 @@ private fun MemberList(
         }
         Spacer(modifier = Modifier.height(2.dp))
         IosTintedButton(text = "새로 초대하기", onClick = onInviteNew, modifier = Modifier.fillMaxWidth())
+        if (info.ownershipCandidates.isNotEmpty()) {
+            IosTintedButton(text = "방장 넘기기", onClick = onAskTransfer, modifier = Modifier.fillMaxWidth())
+        }
         if (info.canLeave) {
             IosTintedButton(
                 text = "이 공유 장부에서 나가기",
@@ -152,7 +176,12 @@ private fun MemberList(
             )
         } else {
             Text(
-                text = "방장은 나갈 수 없어요. 멤버를 모두 내보낸 뒤 플랜을 '기본 (혼자 쓰기)'로 바꾸면 공유가 끝납니다.",
+                style = MaterialTheme.typography.bodyMedium,
+                text = if (info.ownershipCandidates.isNotEmpty()) {
+                    "방장은 나갈 수 없어요. 다른 멤버에게 방장을 넘기면 나가거나 회원 탈퇴를 할 수 있어요."
+                } else {
+                    "함께 쓰는 멤버가 없으면 플랜을 '기본 (혼자 쓰기)'로 바꿔 공유를 끝낼 수 있어요."
+                },
                 fontSize = 11.sp,
                 lineHeight = 16.sp,
                 color = IosSystemGray
@@ -224,18 +253,77 @@ private fun StatusBadge(status: MemberStatus) {
     )
 }
 
+/** 방장을 넘겨받을 멤버 고르기 (함께 쓰는 중인 멤버만) */
+@Composable
+private fun NewOwnerPickerDialog(
+    candidates: List<SharedRoomMember>,
+    onPick: (SharedRoomMember) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("누구에게 방장을 넘길까요?") },
+        text = {
+            Column {
+                Text(
+                    text = "함께 쓰는 중인 멤버에게만 넘길 수 있어요.",
+                    fontSize = 12.sp,
+                    color = IosSystemGray
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                candidates.forEach { member ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onPick(member) }
+                            .padding(horizontal = 8.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = member.name,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = member.email,
+                            fontSize = 11.sp,
+                            color = IosSystemGray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    IosHairlineDivider()
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("취소", maxLines = 1, softWrap = false) }
+        }
+    )
+}
+
 @Composable
 private fun ConfirmMemberActionDialog(
     action: PendingMemberAction,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val confirmColor = if (action is PendingMemberAction.Transfer) MaterialTheme.colorScheme.primary else ExpenseCoral
     val (title, body, confirmLabel) = when (action) {
         is PendingMemberAction.Remove -> Triple(
             "멤버 내보내기",
             "'${action.member.name}'(${action.member.email}) 님을 공유 장부에서 내보낼까요?\n" +
                 "내보낸 멤버는 더 이상 공통 생활비를 보거나 기록할 수 없고, 그동안 남긴 기록은 장부에 그대로 남습니다.",
             "내보내기"
+        )
+        is PendingMemberAction.Transfer -> Triple(
+            "방장 넘기기",
+            "'${action.member.name}'(${action.member.email}) 님에게 방장을 넘길까요?\n" +
+                "넘긴 뒤에는 멤버를 내보낼 수 없고, 새 방장만 다시 넘겨줄 수 있어요. " +
+                "대신 이 공유 장부에서 나가거나 회원 탈퇴를 할 수 있어요.",
+            "넘기기"
         )
         PendingMemberAction.Leave -> Triple(
             "공유 장부에서 나가기",
@@ -247,11 +335,12 @@ private fun ConfirmMemberActionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Text(body, fontSize = 13.sp, lineHeight = 19.sp) },
+        // 한국어 구절 단위 줄바꿈 (단어 중간에서 끊기지 않도록)
+        text = { Text(body, style = MaterialTheme.typography.bodyMedium, fontSize = 13.sp, lineHeight = 19.sp) },
         confirmButton = {
             Button(
                 onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = ExpenseCoral)
+                colors = ButtonDefaults.buttonColors(containerColor = confirmColor)
             ) { Text(confirmLabel, maxLines = 1, softWrap = false) }
         },
         dismissButton = {

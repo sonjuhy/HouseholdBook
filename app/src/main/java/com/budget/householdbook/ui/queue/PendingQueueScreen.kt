@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -72,6 +71,8 @@ import com.budget.householdbook.domain.model.CategoryDefaults
 import com.budget.householdbook.domain.model.IngestionSource
 import com.budget.householdbook.domain.model.NotificationSources
 import com.budget.householdbook.domain.model.QueueKind
+import com.budget.householdbook.domain.model.SpaceType
+import com.budget.householdbook.data.local.entity.LedgerSpaceEntity
 import com.budget.householdbook.domain.model.SplitApprovalItem
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.ui.HouseholdUiState
@@ -150,6 +151,14 @@ fun PendingQueueScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                            if (uiState.pendingQueue.isNotEmpty()) {
+                                Text(
+                                    text = pendingSpaceSummary(uiState),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                             Text(
                                 text = "알림으로 들어온 내역을 장부에 넣기 전에 먼저 확인합니다.",
                                 fontSize = 12.sp,
@@ -360,14 +369,13 @@ fun PendingQueueScreen(
                         fontSize = 12.sp,
                         color = IosSystemGray
                     )
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        uiState.spaces.forEach { space ->
-                            IosPillChip(
-                                label = space.name,
-                                selected = selectedSpaceId == space.id,
-                                onClick = { selectSpace(space.id) }
-                            )
-                        }
+                    uiState.spaces.firstOrNull { it.id == selectedSpaceId }?.let { selectedSpace ->
+                        IosSegmentedControl(
+                            items = uiState.spaces,
+                            selectedItem = selectedSpace,
+                            onItemSelected = { selectSpace(it.id) },
+                            labelProvider = { it.shortLabel() }
+                        )
                     }
                     IosSegmentedControl(
                         items = TransactionType.entries,
@@ -733,23 +741,42 @@ private fun PendingQueueItemCard(
                         color = IosSystemGray
                     )
                 }
-                Text(
-                    text = when {
-                        item.queueKind == QueueKind.CANCEL_MATCHED -> "취소 ${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
-                        selectedType == TransactionType.INCOME -> "+${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
-                        selectedType == TransactionType.TRANSFER -> "이체 ${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
-                        else -> "-${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
-                    },
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = when (selectedType) {
-                        TransactionType.INCOME -> IncomeBlue
-                        TransactionType.TRANSFER -> TransferSlate
-                        TransactionType.EXPENSE -> ExpenseCoral
-                    },
-                    maxLines = 1,
-                    softWrap = false
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = when {
+                            item.queueKind == QueueKind.CANCEL_MATCHED -> "취소 ${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
+                            selectedType == TransactionType.INCOME -> "+${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
+                            selectedType == TransactionType.TRANSFER -> "이체 ${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
+                            else -> "-${CurrencyAndDateFormatter.formatWon(item.parsedAmount)}"
+                        },
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = when (selectedType) {
+                            TransactionType.INCOME -> IncomeBlue
+                            TransactionType.TRANSFER -> TransferSlate
+                            TransactionType.EXPENSE -> ExpenseCoral
+                        },
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    // 내 계좌 이체·카드대금처럼 지출/수입 합계에서 빼는 토글 (어디에 저장할지와는 별개)
+                    if (item.queueKind != QueueKind.CANCEL_MATCHED) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        IosPillChip(
+                            label = "집계 제외",
+                            selected = selectedType == TransactionType.TRANSFER,
+                            onClick = {
+                                val nextType = if (selectedType == TransactionType.TRANSFER) {
+                                    TransactionType.EXPENSE
+                                } else {
+                                    TransactionType.TRANSFER
+                                }
+                                onUpdateClassification(selectedSpaceId, nextType, selectedCatId, selectedSubId)
+                            },
+                            activeColor = TransferSlate
+                        )
+                    }
+                }
             }
 
             // 기존 결제 취소 연결인 경우 전용 안내 UI 표시
@@ -812,33 +839,30 @@ private fun PendingQueueItemCard(
                     }
                 }
 
-                // 1) 공간 선택 & 이체 제외 1줄 컨트롤
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    uiState.spaces.forEach { space ->
-                        IosPillChip(
-                            label = space.name,
-                            selected = selectedSpaceId == space.id,
+                // 1) 저장할 곳: [공용 | 개인] (추천 공간이 미리 선택됨)
+                val selectedSpace = uiState.spaces.firstOrNull { it.id == selectedSpaceId }
+                if (selectedSpace != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "저장할 곳",
+                            fontSize = 13.sp,
+                            color = IosSystemGray,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                        IosSegmentedControl(
+                            items = uiState.spaces,
+                            selectedItem = selectedSpace,
                             // 공간을 바꾸면 카테고리는 새 공간 기준으로 다시 고름 (이전 공간 카테고리가 남지 않도록)
-                            onClick = { onUpdateClassification(space.id, selectedType, null, null) }
+                            onItemSelected = { space -> onUpdateClassification(space.id, selectedType, null, null) },
+                            labelProvider = { it.shortLabel() },
+                            modifier = Modifier.weight(1f)
                         )
                     }
-                    IosPillChip(
-                        label = "이체/집계제외",
-                        selected = selectedType == TransactionType.TRANSFER,
-                        onClick = {
-                            val nextType = if (selectedType == TransactionType.TRANSFER) {
-                                TransactionType.EXPENSE
-                            } else {
-                                TransactionType.TRANSFER
-                            }
-                            onUpdateClassification(selectedSpaceId, nextType, selectedCatId, selectedSubId)
-                        },
-                        activeColor = TransferSlate
-                    )
                 }
 
                 // 2) 방안 1: 1줄 브레드크럼 카테고리 셀렉터 바 (클릭 시 2-Pane iOS 바텀시트 오픈)
@@ -881,12 +905,11 @@ private fun PendingQueueItemCard(
                     icon = Icons.Default.Edit
                 )
                 IosFilledButton(
-                    text = "저장",
+                    text = "${uiState.spaces.firstOrNull { it.id == selectedSpaceId }?.shortLabel() ?: ""}에 저장",
                     onClick = {
                         onQuickApprove(selectedSpaceId, selectedType, selectedCatId ?: 1L, selectedSubId)
                     },
-                    modifier = Modifier.weight(1.1f),
-                    icon = Icons.Default.Check
+                    modifier = Modifier.weight(1.5f)
                 )
             }
         }
@@ -1021,3 +1044,13 @@ private fun CancelTargetPickerDialog(
         }
     )
 }
+
+/** 공간을 짧게: 공용 / 개인 (카드·버튼 안에 들어가도록) */
+private fun LedgerSpaceEntity.shortLabel(): String =
+    if (type == SpaceType.SHARED) "공용" else "개인"
+
+/** 대기내역 상단 요약: "공용 3건 · 개인 2건" */
+private fun pendingSpaceSummary(uiState: HouseholdUiState): String =
+    uiState.spaces.joinToString(" · ") { space ->
+        "${space.shortLabel()} ${uiState.pendingQueue.count { it.suggestedSpaceId == space.id }}건"
+    }

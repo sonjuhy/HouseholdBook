@@ -81,6 +81,8 @@ class PendingQueueScreenTest {
         var approveAll = 0
         var split: Triple<Long, String, List<SplitApprovalItem>>? = null
         var link: Pair<Long, Long>? = null
+        var classification: Pair<Long, String>? = null
+        var quickApproveSpace: String? = null
     }
 
     private fun setScreen(uiState: HouseholdUiState, candidates: List<TransactionEntity> = emptyList()): Calls {
@@ -89,13 +91,13 @@ class PendingQueueScreenTest {
             HouseholdBookTheme {
                 PendingQueueScreen(
                     uiState = uiState,
-                    onApproveSingle = { _, _, _, _, _, _, _, _ -> },
+                    onApproveSingle = { _, spaceId, _, _, _, _, _, _ -> calls.quickApproveSpace = spaceId },
                     onApproveSplit = { id, merchant, splits -> calls.split = Triple(id, merchant, splits) },
                     onApplyMatchedCancel = {},
                     onLoadCancelCandidates = { _, onLoaded -> onLoaded(candidates) },
                     onLinkCancelTarget = { pendingId, txId -> calls.link = pendingId to txId },
                     onDismissItem = { _, _, _ -> },
-                    onUpdateClassification = { _, _, _, _, _ -> },
+                    onUpdateClassification = { id, spaceId, _, _, _ -> calls.classification = id to spaceId },
                     onApproveAll = { calls.approveAll++ },
                     onSimulateNotification = {},
                     onRunKbQuickInquiryBeta = {}
@@ -160,6 +162,20 @@ class PendingQueueScreenTest {
         composeRule.waitForIdle()
         assertEquals(9L to 42L, calls.link)
         assertTrue(composeRule.onAllNodesWithTextCount("취소된 원본 결제 선택") == 0)
+    }
+
+    @Test
+    fun 카드의_저장_버튼은_저장할_공간을_보여주고_공간을_바꾸면_바로_저장을_요청한다() {
+        val calls = setScreen(state(pending(5, "스타벅스", 5_800)))
+
+        // 상단 요약에 공간별 건수
+        composeRule.onNodeWithText("공용 1건 · 개인 0건").assertExists()
+        // 추천 공간(공용)이 선택된 상태 → 버튼도 공용
+        composeRule.onNodeWithText("공용에 저장").performScrollTo().performClick()
+        assertEquals(sharedSpace.id, calls.quickApproveSpace)
+
+        composeRule.onNodeWithText("개인").performScrollTo().performClick()
+        assertEquals(5L to personalSpace.id, calls.classification)
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.onAllNodesWithTextCount(text: String): Int =

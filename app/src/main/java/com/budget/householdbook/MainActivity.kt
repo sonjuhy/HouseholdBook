@@ -127,6 +127,8 @@ private fun HouseholdBookRootScreen(
                 uiState = uiState,
                 isDarkTheme = isDarkTheme,
                 currentTabTitle = currentDestination.headerTitle,
+                // 대기내역은 모든 공간의 항목을 함께 보여주고 저장 공간은 카드에서 고르므로 상단 전환을 숨김
+                showSpaceSwitcher = currentDestination != TopLevelDestination.QUEUE,
                 onSelectSpace = { viewModel.selectSpace(it) },
                 onToggleDarkMode = { viewModel.toggleDarkMode(isDarkTheme) }
             )
@@ -174,6 +176,7 @@ private fun IosNavigationHeader(
     uiState: HouseholdUiState,
     isDarkTheme: Boolean,
     currentTabTitle: String,
+    showSpaceSwitcher: Boolean,
     onSelectSpace: (String) -> Unit,
     onToggleDarkMode: () -> Unit
 ) {
@@ -257,7 +260,7 @@ private fun IosNavigationHeader(
                 }
 
                 // Apple iOS UISegmentedControl 슬라이딩 공간 피커
-                if (uiState.spaces.isNotEmpty()) {
+                if (showSpaceSwitcher && uiState.spaces.isNotEmpty()) {
                     IosSegmentedControl(
                         items = uiState.spaces,
                         selectedItem = uiState.currentSpace,

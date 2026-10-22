@@ -196,6 +196,9 @@ class FakeTransactionRepository(transactions: List<TransactionEntity> = emptyLis
         it.copy(amount = newAmount, memo = memo, syncStatus = SyncStatus.PENDING_UPLOAD)
     }
     override suspend fun markPendingDelete(transactionId: Long) = update(transactionId) { it.copy(syncStatus = SyncStatus.PENDING_DELETE) }
+    override suspend fun renameAuthor(spaceId: String, oldName: String, newName: String) {
+        state.value = state.value.map { if (it.spaceId == spaceId && it.authorName == oldName) it.copy(authorName = newName) else it }
+    }
     override suspend fun deleteById(transactionId: Long) {
         state.value = state.value.filter { it.id != transactionId }
     }

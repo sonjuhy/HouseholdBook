@@ -48,6 +48,7 @@ import com.budget.householdbook.domain.usecase.DeleteIgnoredKeywordUseCase
 import com.budget.householdbook.domain.usecase.UpdateEnabledInstitutionsUseCase
 import com.budget.householdbook.domain.usecase.DeleteMealLogUseCase
 import com.budget.householdbook.domain.usecase.DeleteTransactionUseCase
+import com.budget.householdbook.domain.usecase.UpdateTransactionUseCase
 import com.budget.householdbook.domain.usecase.DismissPendingItemUseCase
 import com.budget.householdbook.domain.usecase.UpdateAutoFilterDuplicatesUseCase
 import com.budget.householdbook.domain.usecase.UpdateDefaultIngestSpaceUseCase
@@ -187,6 +188,7 @@ val useCaseModule = module {
     factoryOf(::CancelTransactionUseCase)
     factoryOf(::RestoreCanceledTransactionUseCase)
     factoryOf(::DeleteTransactionUseCase)
+    factoryOf(::UpdateTransactionUseCase)
     factoryOf(::AddCategoryUseCase)
     factoryOf(::UpdateCategoryUseCase)
     factoryOf(::DeleteCategoryUseCase)

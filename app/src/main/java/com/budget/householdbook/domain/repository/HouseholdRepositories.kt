@@ -88,6 +88,8 @@ interface TransactionRepository {
     suspend fun markPendingDelete(transactionId: Long)
     suspend fun deleteById(transactionId: Long)
     suspend fun countUnsyncedInSpace(spaceId: String): Int
+    /** 한 공간에서 작성자 이름을 일괄 변경 (예전 예시 이름 '홍길동' 정리용) */
+    suspend fun renameAuthor(spaceId: String, oldName: String, newName: String)
 }
 
 /** 집밥 절약 기록 */

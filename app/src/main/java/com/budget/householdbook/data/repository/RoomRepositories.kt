@@ -95,6 +95,8 @@ class RoomTransactionRepository(private val dao: TransactionDao) : TransactionRe
     override suspend fun markPendingDelete(transactionId: Long) = dao.markPendingDelete(transactionId)
     override suspend fun deleteById(transactionId: Long) = dao.deleteById(transactionId)
     override suspend fun countUnsyncedInSpace(spaceId: String): Int = dao.countUnsyncedInSpace(spaceId)
+    override suspend fun renameAuthor(spaceId: String, oldName: String, newName: String) =
+        dao.renameAuthor(spaceId, oldName, newName)
 }
 
 class RoomMealRepository(private val dao: MealSavingDao) : MealRepository {

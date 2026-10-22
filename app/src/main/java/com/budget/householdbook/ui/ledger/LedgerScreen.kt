@@ -1,5 +1,6 @@
 package com.budget.householdbook.ui.ledger
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -73,11 +75,13 @@ fun LedgerScreen(
     ) -> Unit,
     onCancelTransaction: (Long) -> Unit,
     onRestoreCanceledTransaction: (Long) -> Unit,
-    onDeleteTransaction: (Long) -> Unit
+    onDeleteTransaction: (Long) -> Unit,
+    onEditTransaction: (transactionId: Long, edit: TransactionEdit) -> Unit
 ) {
     var selectedFilter by remember { mutableStateOf<TransactionType?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var deletingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+    var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
     val filterOptions = listOf<TransactionType?>(
         null,
@@ -223,6 +227,7 @@ fun LedgerScreen(
                                     append(subCat.name)
                                 }
                             },
+                            onEdit = { editingTransaction = tx },
                             onCancel = { onCancelTransaction(tx.id) },
                             onRestore = { onRestoreCanceledTransaction(tx.id) },
                             // 삭제는 되돌릴 수 없으므로 한 번 더 확인
@@ -234,6 +239,18 @@ fun LedgerScreen(
         }
 
         item { Spacer(modifier = Modifier.height(104.dp)) }
+    }
+
+    editingTransaction?.let { tx ->
+        EditTransactionDialog(
+            tx = tx,
+            spaceCategories = uiState.allCategories.filter { it.spaceId == tx.spaceId },
+            onSave = { edit ->
+                onEditTransaction(tx.id, edit)
+                editingTransaction = null
+            },
+            onDismiss = { editingTransaction = null }
+        )
     }
 
     deletingTransaction?.let { tx ->
@@ -359,6 +376,7 @@ fun LedgerScreen(
 private fun IosTransactionRow(
     tx: TransactionEntity,
     categoryLabel: String,
+    onEdit: () -> Unit,
     onCancel: () -> Unit,
     onRestore: () -> Unit,
     onDelete: () -> Unit
@@ -373,6 +391,8 @@ private fun IosTransactionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // 행을 누르면 수정
+            .clickable(onClickLabel = "내역 수정", onClick = onEdit)
             .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -421,6 +441,17 @@ private fun IosTransactionRow(
             )
 
             Row {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "수정",
+                        tint = IosSystemGray,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 if (!tx.isCanceled) {
                     IconButton(
                         onClick = onCancel,

@@ -29,7 +29,8 @@ data class TransactionUseCases(
     val addManual: AddManualTransactionUseCase,
     val cancel: CancelTransactionUseCase,
     val restoreCancel: RestoreCanceledTransactionUseCase,
-    val delete: DeleteTransactionUseCase
+    val delete: DeleteTransactionUseCase,
+    val update: UpdateTransactionUseCase
 )
 
 /** 카테고리 CRUD */

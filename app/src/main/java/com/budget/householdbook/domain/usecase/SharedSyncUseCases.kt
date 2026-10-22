@@ -1,6 +1,7 @@
 package com.budget.householdbook.domain.usecase
 
 import com.budget.householdbook.domain.model.SharedRoomInfo
+import com.budget.householdbook.domain.model.MemberNames
 import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.data.sync.GoogleLoginResult
 import com.budget.householdbook.domain.model.SharedSyncOutcome
@@ -41,14 +42,23 @@ class SyncSharedChangesUseCase(
 class SyncOnAppStartUseCase(
     private val settingsRepository: SettingsRepository,
     private val spaceRepository: LedgerSpaceRepository,
-    private val sharedSyncRepository: SharedSyncRepository
+    private val sharedSyncRepository: SharedSyncRepository,
+    private val transactionRepository: TransactionRepository
 ) {
     suspend operator fun invoke() {
-        val settings = settingsRepository.userSettingsFlow.first()
         // 로그인했는데 이름이 비어 있으면(예전 예시 이름을 지운 경우 등) 구글 프로필 이름으로 채움
-        if (settings.isLoggedIn && settings.userRealName.isBlank()) {
+        val before = settingsRepository.userSettingsFlow.first()
+        if (before.isLoggedIn && before.userRealName.isBlank()) {
             sharedSyncRepository.currentGoogleDisplayName()?.let { settingsRepository.setUserRealName(it) }
         }
+        val settings = settingsRepository.userSettingsFlow.first()
+        // 개인 용돈은 모두 내가 쓴 기록이므로 예전 예시 이름으로 남은 작성자를 지금 이름으로
+        // (공통 생활비는 다른 멤버의 기록이 섞여 있어 건드리지 않음)
+        transactionRepository.renameAuthor(
+            spaceId = AppDatabase.SPACE_ID_PERSONAL,
+            oldName = MemberNames.LEGACY_PLACEHOLDER_NAME,
+            newName = settings.displayName
+        )
         val sharedSpace = spaceRepository.getSpaceById(AppDatabase.SPACE_ID_SHARED)
         sharedSyncRepository.syncIfEligible(
             userTier = settings.userTier,

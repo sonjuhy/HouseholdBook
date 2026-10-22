@@ -435,6 +435,33 @@ class MainViewModel(
         }
     }
 
+    /** 등록된 거래의 이름·금액·날짜·분류·메모 수정 */
+    fun updateTransaction(
+        transactionId: Long,
+        merchantOrTitle: String,
+        amount: Long,
+        transactionDate: Long,
+        categoryId: Long,
+        subCategoryId: Long?,
+        memo: String
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                transactions.update(transactionId, merchantOrTitle, amount, transactionDate, categoryId, subCategoryId, memo)
+            }.onSuccess { saved ->
+                val period = uiState.value.billingPeriod
+                _snackbarMessage.value = when {
+                    saved == null -> "바뀐 내용이 없어요."
+                    saved.transactionDate < period.startMillis || saved.transactionDate >= period.endExclusiveMillis ->
+                        "수정했어요. 날짜가 바뀌어 다른 정산 주기에서 볼 수 있어요."
+                    else -> "수정했어요."
+                }
+            }.onFailure {
+                _snackbarMessage.value = it.message ?: "수정하지 못했어요."
+            }
+        }
+    }
+
     fun deleteTransaction(transactionId: Long) {
         viewModelScope.launch {
             transactions.delete(transactionId)

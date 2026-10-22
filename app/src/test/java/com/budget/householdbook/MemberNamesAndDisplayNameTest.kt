@@ -5,6 +5,10 @@ import com.budget.householdbook.domain.model.MemberNames
 import com.budget.householdbook.domain.usecase.FakeSettingsRepository
 import com.budget.householdbook.domain.usecase.FakeLedgerSpaceRepository
 import com.budget.householdbook.domain.usecase.FakeSharedSyncRepository
+import com.budget.householdbook.domain.usecase.FakeTransactionRepository
+import com.budget.householdbook.core.database.AppDatabase
+import com.budget.householdbook.data.local.entity.TransactionEntity
+import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.usecase.SyncOnAppStartUseCase
 import com.budget.householdbook.domain.usecase.UpdateDisplayNameUseCase
 import kotlinx.coroutines.test.runTest
@@ -34,15 +38,29 @@ class MemberNamesAndDisplayNameTest {
         assertEquals("민수", MemberNames.summary("", isShared = true, myName = "민수"))
     }
 
+    private fun tx(id: Long, spaceId: String, author: String) = TransactionEntity(
+        id = id, remoteId = "r$id", spaceId = spaceId, type = TransactionType.EXPENSE,
+        amount = 1_000, categoryId = 1, merchantOrTitle = "가게", authorName = author, transactionDate = 0
+    )
+
     @Test
     fun `로그인했는데 이름이 비어 있으면 앱 시작 때 구글 프로필 이름으로 채우고, 직접 정한 이름은 그대로 둔다`() = runTest {
         val sync = FakeSharedSyncRepository().apply { googleDisplayName = "손민수" }
         val empty = FakeSettingsRepository(AppUserSettings(isLoggedIn = true, userEmail = "minsu@gmail.com"))
-        SyncOnAppStartUseCase(empty, FakeLedgerSpaceRepository(), sync)()
+        val transactions = FakeTransactionRepository(
+            listOf(
+                tx(1, AppDatabase.SPACE_ID_PERSONAL, "홍길동"),
+                tx(2, AppDatabase.SPACE_ID_SHARED, "홍길동"),
+                tx(3, AppDatabase.SPACE_ID_PERSONAL, "나")
+            )
+        )
+        SyncOnAppStartUseCase(empty, FakeLedgerSpaceRepository(), sync, transactions)()
         assertEquals("손민수", empty.state.value.userRealName)
+        // 개인 용돈의 예전 예시 이름만 지금 이름으로 (공통 생활비·다른 이름은 그대로)
+        assertEquals(listOf("손민수", "홍길동", "나"), transactions.state.value.sortedBy { it.id }.map { it.authorName })
 
         val named = FakeSettingsRepository(AppUserSettings(isLoggedIn = true, userRealName = "아빠"))
-        SyncOnAppStartUseCase(named, FakeLedgerSpaceRepository(), sync)()
+        SyncOnAppStartUseCase(named, FakeLedgerSpaceRepository(), sync, FakeTransactionRepository())()
         assertEquals("아빠", named.state.value.userRealName)
     }
 

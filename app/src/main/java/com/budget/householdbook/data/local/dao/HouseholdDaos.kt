@@ -171,6 +171,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :transactionId LIMIT 1")
     suspend fun getById(transactionId: Long): TransactionEntity?
 
+    @Query("UPDATE transactions SET authorName = :newName WHERE spaceId = :spaceId AND authorName = :oldName")
+    suspend fun renameAuthor(spaceId: String, oldName: String, newName: String)
+
     @Query("UPDATE transactions SET syncStatus = 'PENDING_DELETE', updatedAt = :nowMillis WHERE id = :transactionId")
     suspend fun markPendingDelete(transactionId: Long, nowMillis: Long = System.currentTimeMillis())
 

@@ -83,7 +83,18 @@ fun HouseholdNavHost(
                 },
                 onCancelTransaction = { viewModel.cancelTransaction(it) },
                 onRestoreCanceledTransaction = { viewModel.restoreCanceledTransaction(it) },
-                onDeleteTransaction = { viewModel.deleteTransaction(it) }
+                onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                onEditTransaction = { id, edit ->
+                    viewModel.updateTransaction(
+                        transactionId = id,
+                        merchantOrTitle = edit.merchantOrTitle,
+                        amount = edit.amount,
+                        transactionDate = edit.transactionDate,
+                        categoryId = edit.categoryId,
+                        subCategoryId = edit.subCategoryId,
+                        memo = edit.memo
+                    )
+                }
             )
         }
 

@@ -16,7 +16,8 @@ class InstitutionFilterUseCaseTest {
     private val enqueue = EnqueueParsedDraftUseCase(
         settings, FakeAutomationRuleRepository(), FakeCategoryRepository(), FakeTransactionRepository(), pending
     )
-    private val ingest = IngestRawNotificationUseCase(settings, enqueue)
+    private val notifier = FakeAppNotifier()
+    private val ingest = IngestRawNotificationUseCase(settings, enqueue, pending, notifier)
     private val updateEnabled = UpdateEnabledInstitutionsUseCase(settings)
 
     @Test

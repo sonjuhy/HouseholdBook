@@ -10,6 +10,7 @@ import com.budget.householdbook.domain.model.QuickInquiryCredentials
 import com.budget.householdbook.domain.model.QueueKind
 import com.budget.householdbook.domain.model.QueueStatus
 import com.budget.householdbook.domain.model.TransactionType
+import com.budget.householdbook.domain.repository.AppNotifier
 import com.budget.householdbook.domain.repository.AutomationRuleRepository
 import com.budget.householdbook.domain.repository.BackgroundTaskScheduler
 import com.budget.householdbook.domain.repository.CategoryRepository
@@ -147,7 +148,9 @@ class EnqueueParsedDraftUseCase(
  */
 class IngestRawNotificationUseCase(
     private val settingsRepository: SettingsRepository,
-    private val enqueueParsedDraft: EnqueueParsedDraftUseCase
+    private val enqueueParsedDraft: EnqueueParsedDraftUseCase,
+    private val pendingQueueRepository: PendingQueueRepository,
+    private val notifier: AppNotifier
 ) {
     /**
      * @param sourcePackage 알림을 보낸 앱 패키지 (문자는 null → 본문으로 금융기관 판별)
@@ -184,7 +187,10 @@ class IngestRawNotificationUseCase(
         // 설정에서 끈 금융기관의 알림·문자는 건너뜀
         if (draft.institutionId !in settings.enabledInstitutionIds) return false
 
-        return enqueueParsedDraft(draft) != null
+        val pendingId = enqueueParsedDraft(draft) ?: return false
+        // 새 결제 알림 ([공용에 저장] [개인에 저장] 버튼)
+        pendingQueueRepository.getById(pendingId)?.let { notifier.notifyPendingPayment(it.toPaymentAlert()) }
+        return true
     }
 }
 
@@ -272,6 +278,7 @@ class EnsureBackgroundWorkUseCase(
     suspend operator fun invoke() {
         val settings = settingsRepository.userSettingsFlow.first()
         scheduler.ensurePeriodicSync()
+        scheduler.ensurePeriodicStatusCheck()
         scheduler.applyKbAutoInquiry(
             enabled = settings.kbAutoInquiryEnabled && kbRepository.credentialsFlow.value.isConfigured,
             intervalHours = settings.kbAutoInquiryIntervalHours

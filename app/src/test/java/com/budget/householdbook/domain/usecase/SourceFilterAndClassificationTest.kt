@@ -51,7 +51,8 @@ class SourceFilterAndClassificationTest {
     private val runner = ImmediateTransactionRunner()
 
     private val enqueue = EnqueueParsedDraftUseCase(settings, rules, categories, transactions, pending)
-    private val ingest = IngestRawNotificationUseCase(settings, enqueue)
+    private val notifier = FakeAppNotifier()
+    private val ingest = IngestRawNotificationUseCase(settings, enqueue, pending, notifier)
     private val syncShared = SyncSharedChangesUseCase(settings, spaces, sync)
     private val approve = ApprovePendingItemUseCase(runner, pending, transactions, spaces, rules, settings, sync)
     private val applyMatchedCancel = ApplyMatchedCancelUseCase(runner, pending, transactions, syncShared)

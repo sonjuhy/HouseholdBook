@@ -1,5 +1,10 @@
 package com.budget.householdbook.domain.repository
 
+import com.budget.householdbook.domain.model.PendingPaymentAlert
+import com.budget.householdbook.domain.model.BudgetAlert
+import com.budget.householdbook.domain.model.BudgetAlertRecord
+import com.budget.householdbook.domain.model.CollectionAlertState
+import com.budget.householdbook.domain.model.CollectionStopReason
 import com.budget.householdbook.core.datastore.AppUserSettings
 import com.budget.householdbook.data.ingestion.parser.ParsedNotificationDraft
 import com.budget.householdbook.data.local.entity.CategoryEntity
@@ -200,6 +205,31 @@ interface KbQuickInquiryRepository {
 interface BackgroundTaskScheduler {
     fun ensurePeriodicSync()
     fun applyKbAutoInquiry(enabled: Boolean, intervalHours: Int)
+    /** 자동 수집이 멈췄는지 주기적으로 확인하는 작업 (앱 시작 시 1회 등록, 이미 있으면 유지) */
+    fun ensurePeriodicStatusCheck()
+}
+
+/**
+ * 휴대폰 알림 보내기 (Android 구현: core/notification/AndroidAppNotifier)
+ * 알림 권한이 없으면 조용히 아무것도 하지 않음
+ */
+interface AppNotifier {
+    fun notifyPendingPayment(alert: PendingPaymentAlert)
+    /** 백그라운드 은행 불러오기로 여러 건이 한 번에 들어온 경우 */
+    fun notifyPendingBatch(count: Int)
+    /** 대기내역에서 처리된(사라진) 항목의 알림 지우기 */
+    fun cancelPendingExcept(activePendingIds: Set<Long>)
+    fun notifyBudget(alert: BudgetAlert)
+    fun notifyCollectionStopped(reason: CollectionStopReason)
+    fun cancelCollectionStopped(reason: CollectionStopReason)
+}
+
+/** 알림을 언제 보냈는지 기록 (같은 알림을 반복해서 보내지 않기 위함) */
+interface AlertStateRepository {
+    suspend fun getLastBudgetAlert(spaceId: String): BudgetAlertRecord?
+    suspend fun setLastBudgetAlert(spaceId: String, record: BudgetAlertRecord)
+    suspend fun getCollectionState(): CollectionAlertState
+    suspend fun setCollectionState(state: CollectionAlertState)
 }
 
 /** 집밥 기록·공간·단가가 바뀌었을 때 홈 화면 위젯 갱신 */

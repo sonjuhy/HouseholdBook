@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 선택적 SMS 문자 파싱 권한 (카메라/전화가 없는 태블릿 호환성 보장) -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- 새 결제·예산·자동 기록 상태 알림 (Android 13+ 실행 중 요청) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
@@ -58,6 +60,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/app_name"
             android:theme="@style/Theme.HouseholdBook"
             android:windowSoftInputMode="adjustResize">
@@ -90,6 +93,11 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/meal_saver_widget_info" />
         </receiver>
+
+        <!-- 알림의 [공용에 저장] [개인에 저장] 버튼 -->
+        <receiver
+            android:name=".core.notification.NotificationActionReceiver"
+            android:exported="false" />
 
         <!-- 금융 문자(SMS) 자동 감지 리시버 -->
         <receiver

@@ -67,6 +67,16 @@ import com.budget.householdbook.domain.usecase.CancelInvitationUseCase
 import com.budget.householdbook.domain.usecase.LeaveSharedSpaceUseCase
 import com.budget.householdbook.domain.usecase.TransferOwnershipUseCase
 import com.budget.householdbook.domain.usecase.DeleteAccountUseCase
+import com.budget.householdbook.domain.usecase.QuickSavePendingUseCase
+import com.budget.householdbook.domain.usecase.CheckBudgetAlertUseCase
+import com.budget.householdbook.domain.usecase.CheckCollectionStatusUseCase
+import com.budget.householdbook.domain.usecase.RecordBankInquiryResultUseCase
+import com.budget.householdbook.domain.repository.AppNotifier
+import com.budget.householdbook.domain.repository.AlertStateRepository
+import com.budget.householdbook.core.datastore.AlertStateDataStore
+import com.budget.householdbook.core.notification.AndroidAppNotifier
+import com.budget.householdbook.core.notification.BudgetAlertMonitor
+import com.budget.householdbook.core.notification.PendingAlertCleaner
 import com.budget.householdbook.domain.usecase.UpdateDisplayNameUseCase
 import com.budget.householdbook.domain.usecase.LoadSharedMembersUseCase
 import com.budget.householdbook.domain.usecase.RemoveSharedMemberUseCase
@@ -152,6 +162,11 @@ val repositoryModule = module {
         )
     }
     single<MealWidgetRefresher> { AndroidMealWidgetRefresher(androidContext()) }
+    // 휴대폰 알림 (새 결제 · 예산 · 자동 기록 상태)
+    single { AndroidAppNotifier(androidContext()) } bind AppNotifier::class
+    single<AlertStateRepository> { AlertStateDataStore(androidContext()) }
+    single { BudgetAlertMonitor(get(), get(), get()) }
+    single { PendingAlertCleaner(get(), get()) }
 }
 
 /** 도메인 UseCase (상태 없음 → factory) 및 화면별 번들 */
@@ -214,6 +229,11 @@ val useCaseModule = module {
     factoryOf(::LeaveSharedSpaceUseCase)
     factoryOf(::TransferOwnershipUseCase)
     factoryOf(::DeleteAccountUseCase)
+    // 알림
+    factoryOf(::QuickSavePendingUseCase)
+    factoryOf(::CheckBudgetAlertUseCase)
+    factoryOf(::CheckCollectionStatusUseCase)
+    factoryOf(::RecordBankInquiryResultUseCase)
     factoryOf(::UpdateDisplayNameUseCase)
     factoryOf(::SignOutGoogleUseCase)
     factoryOf(::SelectSpaceUseCase)

@@ -29,6 +29,13 @@ import com.budget.householdbook.domain.repository.MealWidgetRefresher
 import com.budget.householdbook.domain.repository.PendingQueueRepository
 import com.budget.householdbook.domain.repository.SettingsRepository
 import com.budget.householdbook.domain.repository.LocalDataResetter
+import com.budget.householdbook.domain.repository.AppNotifier
+import com.budget.householdbook.domain.repository.AlertStateRepository
+import com.budget.householdbook.domain.model.PendingPaymentAlert
+import com.budget.householdbook.domain.model.BudgetAlert
+import com.budget.householdbook.domain.model.BudgetAlertRecord
+import com.budget.householdbook.domain.model.CollectionAlertState
+import com.budget.householdbook.domain.model.CollectionStopReason
 import com.budget.householdbook.domain.repository.SharedSyncRepository
 import com.budget.householdbook.domain.repository.TransactionRepository
 import com.budget.householdbook.domain.repository.TransactionRunner
@@ -332,4 +339,29 @@ class FakeKbQuickInquiryRepository(
 class CountingWidgetRefresher : MealWidgetRefresher {
     var count = 0
     override fun refresh() { count++ }
+}
+
+/** 보낸 알림을 기록만 하는 가짜 알림 */
+class FakeAppNotifier : AppNotifier {
+    val payments = mutableListOf<PendingPaymentAlert>()
+    val batches = mutableListOf<Int>()
+    val budgets = mutableListOf<BudgetAlert>()
+    val stopped = mutableListOf<CollectionStopReason>()
+    val canceledStops = mutableListOf<CollectionStopReason>()
+    var activePendingIds: Set<Long>? = null
+    override fun notifyPendingPayment(alert: PendingPaymentAlert) { payments += alert }
+    override fun notifyPendingBatch(count: Int) { batches += count }
+    override fun cancelPendingExcept(activePendingIds: Set<Long>) { this.activePendingIds = activePendingIds }
+    override fun notifyBudget(alert: BudgetAlert) { budgets += alert }
+    override fun notifyCollectionStopped(reason: CollectionStopReason) { stopped += reason }
+    override fun cancelCollectionStopped(reason: CollectionStopReason) { canceledStops += reason }
+}
+
+class FakeAlertStateRepository : AlertStateRepository {
+    val budget = mutableMapOf<String, BudgetAlertRecord>()
+    var collection = CollectionAlertState()
+    override suspend fun getLastBudgetAlert(spaceId: String) = budget[spaceId]
+    override suspend fun setLastBudgetAlert(spaceId: String, record: BudgetAlertRecord) { budget[spaceId] = record }
+    override suspend fun getCollectionState() = collection
+    override suspend fun setCollectionState(state: CollectionAlertState) { collection = state }
 }

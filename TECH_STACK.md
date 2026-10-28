@@ -108,6 +108,13 @@
 
 ---
 
+5. **휴대폰 알림 (`core/notification/`)**:
+   - 도메인 인터페이스 `AppNotifier`(보내기)·`AlertStateRepository`(언제 보냈는지, DataStore `household_alert_state`) + Android 구현 `AndroidAppNotifier`·`AlertStateDataStore`. 판단 로직은 `domain/usecase/AlertUseCases.kt` (JVM 단위 테스트).
+   - 새 결제: `IngestRawNotificationUseCase`가 대기 큐에 넣은 직후 알림. 버튼은 `NotificationActionReceiver`(goAsync) → `QuickSavePendingUseCase` → `ApprovePendingItemUseCase`.
+   - 앱 프로세스가 살아 있는 동안 `HouseholdBookApp`에서 시작하는 감시: `BudgetAlertMonitor`(공간별 이번 주기 거래 Flow → `CheckBudgetAlertUseCase`, 한 시간마다 주기 재계산), `PendingAlertCleaner`(대기 목록에서 사라진 항목의 알림 삭제).
+   - `StatusCheckWorker`(12시간, WorkManager)가 알림 읽기 권한을 확인 → `CheckCollectionStatusUseCase`. `MainActivity.onResume`에서도 같은 확인(알림 없이 기록만). `QuickInquiryWorker`는 결과를 `RecordBankInquiryResultUseCase`에 기록.
+   - 알림을 누르면 `MainActivity`(singleTop)가 `open_tab` 값으로 대기내역·장부·홈·설정 탭을 엶.
+
 ## 3. 버전 카탈로그 구성 표준 (`gradle/libs.versions.toml`)
 
 AI 에이전트가 `gradle/libs.versions.toml`을 업데이트할 때 사용할 권장 구성입니다.

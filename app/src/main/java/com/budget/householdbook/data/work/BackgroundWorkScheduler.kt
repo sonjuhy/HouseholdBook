@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
  * WorkManager 백그라운드 작업 예약 창구
  * - SyncWorker: 오프라인에서 쌓인 공통 생활비 변경(PENDING_UPLOAD / PENDING_DELETE)을 인터넷 연결 시 업로드
  * - QuickInquiryWorker: [Beta] KB 빠른조회 주기적 자동 갱신
+ * - StatusCheckWorker: 결제 알림 읽기 권한이 꺼져 자동 기록이 멈췄는지 확인
  */
 class BackgroundWorkScheduler(private val context: Context) : BackgroundTaskScheduler {
 
@@ -48,6 +49,12 @@ class BackgroundWorkScheduler(private val context: Context) : BackgroundTaskSche
         workManager.enqueueUniquePeriodicWork(SYNC_PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)
     }
 
+    /** 자동 기록 멈춤(알림 읽기 권한 꺼짐) 확인: 12시간마다, 이미 있으면 유지 */
+    override fun ensurePeriodicStatusCheck() {
+        val request = PeriodicWorkRequestBuilder<StatusCheckWorker>(STATUS_CHECK_HOURS, TimeUnit.HOURS).build()
+        workManager.enqueueUniquePeriodicWork(STATUS_CHECK, ExistingPeriodicWorkPolicy.KEEP, request)
+    }
+
     /**
      * KB 빠른조회 자동 갱신 켜기/끄기 및 주기 변경
      */
@@ -71,6 +78,8 @@ class BackgroundWorkScheduler(private val context: Context) : BackgroundTaskSche
         const val SYNC_ONE_TIME = "household_shared_sync_once"
         const val SYNC_PERIODIC = "household_shared_sync_periodic"
         const val KB_QUICK_INQUIRY = "household_kb_quick_inquiry"
+        const val STATUS_CHECK = "household_collection_status_check"
+        private const val STATUS_CHECK_HOURS = 12L
 
         private const val PERIODIC_SYNC_HOURS = 6L
         const val MIN_KB_INTERVAL_HOURS = 1

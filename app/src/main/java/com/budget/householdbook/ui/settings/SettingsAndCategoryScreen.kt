@@ -728,6 +728,9 @@ fun SettingsAndCategoryScreen(
             }
         }
 
+        // 3-1. 알림 (새 결제 · 예산 · 자동 기록 멈춤)
+        item { NotificationSettingsCard() }
+
         // 4. 공간별 전체 목표 예산 및 월 정산 기준일 설정
         item {
             var targetBudgetText by remember(uiState.currentSpace) {

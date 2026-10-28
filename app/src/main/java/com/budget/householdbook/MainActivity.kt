@@ -63,11 +63,25 @@ import com.budget.householdbook.ui.navigation.navigateToTopLevel
 import com.budget.householdbook.ui.onboarding.OnboardingScreen
 import com.budget.householdbook.ui.theme.HouseholdBookTheme
 import org.koin.androidx.compose.koinViewModel
+import org.koin.android.ext.android.inject
+import android.content.Intent
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.budget.householdbook.data.ingestion.notification.FinancialNotificationListenerService
+import com.budget.householdbook.domain.usecase.CheckCollectionStatusUseCase
 
 class MainActivity : ComponentActivity() {
+
+    private val checkCollectionStatus: CheckCollectionStatusUseCase by inject()
+
+    /** 알림을 눌러 들어왔을 때 열 탭 (처리하면 비움) */
+    private val requestedTab = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) requestedTab.value = intent?.getStringExtra(EXTRA_OPEN_TAB)
         setContent {
             val viewModel: MainViewModel = koinViewModel()
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -129,11 +143,35 @@ class MainActivity : ComponentActivity() {
                         uiState = uiState,
                         isDarkTheme = isDarkTheme,
                         viewModel = viewModel,
-                        snackbarHostState = snackbarHostState
+                        snackbarHostState = snackbarHostState,
+                        requestedTab = requestedTab.value,
+                        onRequestedTabHandled = { requestedTab.value = null }
                     )
                 }
             }
         }
+    }
+
+    /** 앱이 열려 있을 때 알림을 누른 경우 (singleTop) */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(EXTRA_OPEN_TAB)?.let { requestedTab.value = it }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 설정에서 결제 알림 읽기를 다시 켜고 돌아온 경우 '자동 기록 멈춤' 알림을 지우고 사용 이력을 기록
+        val accessEnabled = FinancialNotificationListenerService.isNotificationAccessGranted(this)
+        lifecycleScope.launch { checkCollectionStatus(notificationAccessEnabled = accessEnabled, notify = false) }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_TAB = "open_tab"
+        const val TAB_HOME = "home"
+        const val TAB_QUEUE = "queue"
+        const val TAB_LEDGER = "ledger"
+        const val TAB_SETTINGS = "settings"
     }
 }
 
@@ -142,11 +180,27 @@ private fun HouseholdBookRootScreen(
     uiState: HouseholdUiState,
     isDarkTheme: Boolean,
     viewModel: MainViewModel,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    requestedTab: String?,
+    onRequestedTabHandled: () -> Unit
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = TopLevelDestination.from(backStackEntry?.destination)
+
+    // 알림을 눌러 들어온 경우 해당 탭으로 (새 결제 → 대기내역, 예산 → 홈 등)
+    LaunchedEffect(requestedTab, backStackEntry != null) {
+        val tab = requestedTab ?: return@LaunchedEffect
+        if (backStackEntry == null) return@LaunchedEffect
+        val destination = when (tab) {
+            MainActivity.TAB_QUEUE -> TopLevelDestination.QUEUE
+            MainActivity.TAB_LEDGER -> TopLevelDestination.LEDGER
+            MainActivity.TAB_SETTINGS -> TopLevelDestination.SETTINGS
+            else -> TopLevelDestination.DASHBOARD
+        }
+        navController.navigateToTopLevel(destination)
+        onRequestedTabHandled()
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

@@ -71,11 +71,10 @@ import com.budget.householdbook.domain.model.CategoryDefaults
 import com.budget.householdbook.domain.model.IngestionSource
 import com.budget.householdbook.domain.model.NotificationSources
 import com.budget.householdbook.domain.model.QueueKind
-import com.budget.householdbook.domain.model.SpaceType
-import com.budget.householdbook.data.local.entity.LedgerSpaceEntity
 import com.budget.householdbook.domain.model.SplitApprovalItem
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.ui.HouseholdUiState
+import com.budget.householdbook.ui.shortLabel
 import com.budget.householdbook.ui.theme.ExpenseCoral
 import com.budget.householdbook.ui.theme.IncomeBlue
 import com.budget.householdbook.ui.theme.IosSystemGray
@@ -1044,10 +1043,6 @@ private fun CancelTargetPickerDialog(
         }
     )
 }
-
-/** 공간을 짧게: 공용 / 개인 (카드·버튼 안에 들어가도록) */
-private fun LedgerSpaceEntity.shortLabel(): String =
-    if (type == SpaceType.SHARED) "공용" else "개인"
 
 /** 대기내역 상단 요약: "공용 3건 · 개인 2건" */
 private fun pendingSpaceSummary(uiState: HouseholdUiState): String =

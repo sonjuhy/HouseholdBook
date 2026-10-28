@@ -29,6 +29,15 @@ data class CategoryGroup(
     val subCategories: List<CategoryEntity>
 )
 
+/** 한 공간의 분류만 대분류 → 세부 분류로 묶음 (공용·개인 분류는 서로 섞이지 않음) */
+fun List<CategoryEntity>.groupedForSpace(spaceId: String): List<CategoryGroup> {
+    val spaceCats = filter { it.spaceId == spaceId && !it.isArchived }
+        .sortedWith(compareBy({ it.sortOrder }, { it.id }))
+    return spaceCats.filter { it.parentId == null }.map { parent ->
+        CategoryGroup(parent = parent, subCategories = spaceCats.filter { it.parentId == parent.id })
+    }
+}
+
 /**
  * 상위 카테고리별 지출 합계 및 세부 카테고리 내역 요약
  */
@@ -63,6 +72,8 @@ data class HouseholdOverview(
     val billingPeriod: BillingPeriod,
     val allCategories: List<CategoryEntity>,
     val currentSpaceCategoryGroups: List<CategoryGroup>,
+    /** 공간 id → 그 공간의 분류 (설정에서 공용·개인 분류를 따로 관리) */
+    val categoryGroupsBySpace: Map<String, List<CategoryGroup>>,
     val pendingQueue: List<PendingTransactionEntity>,
     val transactions: List<TransactionEntity>,
     val mealLogs: List<MealSavingLogEntity>,

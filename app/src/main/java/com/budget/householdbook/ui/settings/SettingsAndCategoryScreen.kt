@@ -17,23 +17,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -52,7 +44,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -134,10 +125,6 @@ fun SettingsAndCategoryScreen(
     val smsPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> hasSmsPermission = granted }
-
-    var addingParentForSpace by remember { mutableStateOf(false) }
-    var addingSubForParent by remember { mutableStateOf<CategoryEntity?>(null) }
-    var editingCategory by remember { mutableStateOf<CategoryEntity?>(null) }
 
     var showEditName by remember { mutableStateOf(false) }
     var showKbSetupDialog by remember { mutableStateOf(false) }
@@ -283,168 +270,16 @@ fun SettingsAndCategoryScreen(
             }
         }
 
-        // 1. 방안 3 적용: 상위 카테고리 + 세부 분류 관리 섹션
+        // 1. 분류 관리: 공용·개인 분류를 탭으로 나눠 따로 관리
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                IosSectionHeader(
-                    title = "${uiState.currentSpace.name} 카테고리 및 세부 분류",
-                    actionLabel = "+ 대분류 추가",
-                    onActionClick = { addingParentForSpace = true }
-                )
-
-                IosInsetGroupedCard(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
-                    uiState.currentSpaceCategoryGroups.forEachIndexed { index, group ->
-                        if (index > 0) {
-                            IosHairlineDivider()
-                        }
-                        var isExpanded by remember(group.parent.id) { mutableStateOf(true) }
-
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 10.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // 상위 카테고리 메인 행
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(end = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "${group.parent.emoji} ${group.parent.name}",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "${group.parent.transactionType.displayName} · 세부 ${group.subCategories.size}개",
-                                        fontSize = 12.sp,
-                                        color = IosSystemGray,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (group.subCategories.isNotEmpty()) {
-                                        TextButton(
-                                            onClick = { isExpanded = !isExpanded },
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                                        ) {
-                                            Text(
-                                                text = if (isExpanded) "접기" else "펼치기",
-                                                fontSize = 12.sp,
-                                                color = IosSystemGray,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                        }
-                                    }
-                                    IosTintedButton(
-                                        text = "+ 세부",
-                                        onClick = { addingSubForParent = group.parent }
-                                    )
-                                    IconButton(
-                                        onClick = { editingCategory = group.parent },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = "수정",
-                                            tint = IosSystemGray,
-                                            modifier = Modifier.size(17.dp)
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = { onDeleteCategory(group.parent.id) },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.DeleteOutline,
-                                            contentDescription = "삭제",
-                                            tint = ExpenseCoral,
-                                            modifier = Modifier.size(17.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // 방안 3: 들여쓰기된 세로 리스트로 세부 카테고리 표시
-                            if (group.subCategories.isEmpty()) {
-                                Text(
-                                    text = "등록된 세부 분류가 없습니다.",
-                                    fontSize = 12.sp,
-                                    color = IosSystemGray,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
-                            } else if (isExpanded) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = 10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    group.subCategories.forEachIndexed { subIdx, sub ->
-                                        if (subIdx > 0) {
-                                            IosHairlineDivider()
-                                        }
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "↳ ${sub.emoji} ${sub.name}",
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .padding(end = 8.dp),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                IconButton(
-                                                    onClick = { editingCategory = sub },
-                                                    modifier = Modifier.size(28.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Edit,
-                                                        contentDescription = "세부 수정",
-                                                        tint = IosSystemGray,
-                                                        modifier = Modifier.size(15.dp)
-                                                    )
-                                                }
-                                                IconButton(
-                                                    onClick = { onDeleteCategory(sub.id) },
-                                                    modifier = Modifier.size(28.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.DeleteOutline,
-                                                        contentDescription = "세부 삭제",
-                                                        tint = ExpenseCoral,
-                                                        modifier = Modifier.size(15.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            CategoryManagementSection(
+                spaces = uiState.spaces,
+                initialSpaceId = uiState.currentSpace.id,
+                categoryGroupsBySpace = uiState.categoryGroupsBySpace,
+                onAddCategory = onAddCategory,
+                onUpdateCategory = onUpdateCategory,
+                onDeleteCategory = onDeleteCategory
+            )
         }
 
         // 2. 이용 플랜 및 생활비 함께 쓰기
@@ -847,168 +682,6 @@ fun SettingsAndCategoryScreen(
         }
 
         item { Spacer(modifier = Modifier.height(104.dp)) }
-    }
-
-    // 상위 카테고리 추가 다이얼로그
-    if (addingParentForSpace) {
-        var name by remember { mutableStateOf("") }
-        var emoji by remember { mutableStateOf("🛍️") }
-        var type by remember { mutableStateOf(TransactionType.EXPENSE) }
-
-        AlertDialog(
-            onDismissRequest = { addingParentForSpace = false },
-            title = { Text("${uiState.currentSpace.name} 대분류 추가") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    IosSegmentedControl(
-                        items = listOf(TransactionType.EXPENSE, TransactionType.INCOME),
-                        selectedItem = type,
-                        onItemSelected = { type = it },
-                        labelProvider = { it.displayName }
-                    )
-                    OutlinedTextField(
-                        value = emoji,
-                        onValueChange = { emoji = it },
-                        label = { Text("아이콘 모양 (예: 🍔, 🏠, 🎮)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("대분류 이름") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (name.isNotBlank()) {
-                            onAddCategory(uiState.currentSpace.id, null, type, name, emoji, "#007AFF")
-                            addingParentForSpace = false
-                        }
-                    }
-                ) {
-                    Text("추가", maxLines = 1, softWrap = false)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { addingParentForSpace = false }) {
-                    Text("취소", maxLines = 1, softWrap = false)
-                }
-            }
-        )
-    }
-
-    // 세부 카테고리 추가 다이얼로그
-    addingSubForParent?.let { parent ->
-        var subName by remember { mutableStateOf("") }
-        var subEmoji by remember { mutableStateOf("🏷️") }
-
-        AlertDialog(
-            onDismissRequest = { addingSubForParent = null },
-            title = { Text("'${parent.name}'의 세부 분류 추가") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = subEmoji,
-                        onValueChange = { subEmoji = it },
-                        label = { Text("아이콘 모양 (예: 🛵, 🥬, ☕)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = subName,
-                        onValueChange = { subName = it },
-                        label = { Text("세부 분류 이름") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (subName.isNotBlank()) {
-                            onAddCategory(
-                                parent.spaceId,
-                                parent.id,
-                                parent.transactionType,
-                                subName,
-                                subEmoji,
-                                parent.colorHex
-                            )
-                            addingSubForParent = null
-                        }
-                    }
-                ) {
-                    Text("추가", maxLines = 1, softWrap = false)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { addingSubForParent = null }) {
-                    Text("취소", maxLines = 1, softWrap = false)
-                }
-            }
-        )
-    }
-
-    // 카테고리 이름/아이콘 수정 및 삭제 다이얼로그
-    editingCategory?.let { cat ->
-        var editName by remember(cat) { mutableStateOf(cat.name) }
-        var editEmoji by remember(cat) { mutableStateOf(cat.emoji) }
-
-        AlertDialog(
-            onDismissRequest = { editingCategory = null },
-            title = { Text("분류 수정 / 삭제") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = editEmoji,
-                        onValueChange = { editEmoji = it },
-                        label = { Text("아이콘 모양") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = editName,
-                        onValueChange = { editName = it },
-                        label = { Text("분류 이름") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    IosTintedButton(
-                        text = "이 분류 삭제하기",
-                        onClick = {
-                            onDeleteCategory(cat.id)
-                            editingCategory = null
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        tintColor = ExpenseCoral,
-                        icon = Icons.Default.DeleteOutline
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (editName.isNotBlank()) {
-                            onUpdateCategory(cat.copy(name = editName.trim(), emoji = editEmoji.trim()))
-                            editingCategory = null
-                        }
-                    }
-                ) {
-                    Text("저장", maxLines = 1, softWrap = false)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { editingCategory = null }) {
-                    Text("취소", maxLines = 1, softWrap = false)
-                }
-            }
-        )
     }
 
     if (showSharedMembers) {

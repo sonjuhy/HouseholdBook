@@ -302,6 +302,7 @@ class BudgetMealAndSyncUseCasesTest {
         assertEquals(1_336_100L, current.budget.remainingBudgetAmount)
         assertEquals(listOf("식비", "주거/생활", "생활비 입금"), current.currentSpaceCategoryGroups.map { it.parent.name })
         assertEquals(2, current.currentSpaceCategoryGroups.first().subCategories.size)
+        assertEquals(current.currentSpaceCategoryGroups, current.categoryGroupsBySpace[shared])
 
         monthOffset.value = -1
         val previous = observe(monthOffset).first()

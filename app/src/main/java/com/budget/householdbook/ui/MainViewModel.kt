@@ -27,6 +27,7 @@ import com.budget.householdbook.domain.model.ThemeMode
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.UserTier
 import com.budget.householdbook.domain.usecase.AccountUseCases
+import com.budget.householdbook.domain.usecase.AddCategoryResult
 import com.budget.householdbook.domain.usecase.CategoryUseCases
 import com.budget.householdbook.domain.usecase.IngestionUseCases
 import com.budget.householdbook.domain.usecase.InitializeAppUseCase
@@ -57,6 +58,7 @@ data class HouseholdUiState(
     val billingPeriod: BillingPeriod = BillingCycleCalculator.calculatePeriod(),
     val allCategories: List<CategoryEntity> = emptyList(),
     val currentSpaceCategoryGroups: List<CategoryGroup> = emptyList(),
+    val categoryGroupsBySpace: Map<String, List<CategoryGroup>> = emptyMap(),
     val pendingQueue: List<PendingTransactionEntity> = emptyList(),
     val transactions: List<TransactionEntity> = emptyList(),
     val mealLogs: List<MealSavingLogEntity> = emptyList(),
@@ -83,6 +85,7 @@ private fun HouseholdOverview.toUiState() = HouseholdUiState(
     billingPeriod = billingPeriod,
     allCategories = allCategories,
     currentSpaceCategoryGroups = currentSpaceCategoryGroups,
+    categoryGroupsBySpace = categoryGroupsBySpace,
     pendingQueue = pendingQueue,
     transactions = transactions,
     mealLogs = mealLogs,
@@ -478,11 +481,14 @@ class MainViewModel(
         colorHex: String
     ) {
         viewModelScope.launch {
-            categories.add(spaceId, parentId, transactionType, name, emoji, colorHex)
-            _snackbarMessage.value = if (parentId == null) {
-                "상위 카테고리 '$name'이(가) 추가되었습니다."
-            } else {
-                "세부 카테고리 '$name'이(가) 추가되었습니다."
+            val spaceLabel = uiState.value.spaces.firstOrNull { it.id == spaceId }?.name ?: "이 장부"
+            _snackbarMessage.value = when (categories.add(spaceId, parentId, transactionType, name, emoji, colorHex)) {
+                AddCategoryResult.ADDED ->
+                    if (parentId == null) "$spaceLabel 분류에 '${name.trim()}'을(를) 추가했어요."
+                    else "세부 분류 '${name.trim()}'을(를) 추가했어요."
+                AddCategoryResult.DUPLICATE_NAME -> "$spaceLabel 분류에 이미 '${name.trim()}'이(가) 있어요."
+                AddCategoryResult.PARENT_NOT_FOUND -> "대분류를 찾을 수 없어요. 다시 시도해 주세요."
+                AddCategoryResult.BLANK_NAME -> "분류 이름을 입력해 주세요."
             }
         }
     }

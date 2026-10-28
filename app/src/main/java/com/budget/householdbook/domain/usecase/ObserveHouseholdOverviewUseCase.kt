@@ -4,9 +4,9 @@ import com.budget.householdbook.core.common.BillingCycleCalculator
 import com.budget.householdbook.core.common.BillingPeriod
 import com.budget.householdbook.core.datastore.AppUserSettings
 import com.budget.householdbook.data.local.entity.LedgerSpaceEntity
-import com.budget.householdbook.domain.model.CategoryGroup
 import com.budget.householdbook.domain.model.FALLBACK_SHARED_SPACE
 import com.budget.householdbook.domain.model.HouseholdOverview
+import com.budget.householdbook.domain.model.groupedForSpace
 import com.budget.householdbook.domain.repository.AutomationRuleRepository
 import com.budget.householdbook.domain.repository.CategoryRepository
 import com.budget.householdbook.domain.repository.KbQuickInquiryRepository
@@ -97,13 +97,7 @@ class ObserveHouseholdOverviewUseCase(
                 creds to syncMsg
             }
         ) { (ctx, txs, meals), allCategories, pendingQueue, ignoredKeywords, (kbCreds, syncMsg) ->
-            val spaceCats = allCategories.filter { it.spaceId == ctx.currentSpace.id }
-            val categoryGroups = spaceCats.filter { it.parentId == null }.map { parent ->
-                CategoryGroup(
-                    parent = parent,
-                    subCategories = spaceCats.filter { it.parentId == parent.id }
-                )
-            }
+            val groupsBySpace = ctx.spaces.associate { space -> space.id to allCategories.groupedForSpace(space.id) }
 
             HouseholdOverview(
                 settings = ctx.settings,
@@ -112,7 +106,9 @@ class ObserveHouseholdOverviewUseCase(
                 monthOffset = ctx.monthOffset,
                 billingPeriod = ctx.period,
                 allCategories = allCategories,
-                currentSpaceCategoryGroups = categoryGroups,
+                currentSpaceCategoryGroups = groupsBySpace[ctx.currentSpace.id]
+                    ?: allCategories.groupedForSpace(ctx.currentSpace.id),
+                categoryGroupsBySpace = groupsBySpace,
                 pendingQueue = pendingQueue,
                 transactions = txs,
                 mealLogs = meals,

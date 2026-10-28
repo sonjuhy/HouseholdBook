@@ -43,6 +43,7 @@ import com.budget.householdbook.domain.usecase.CalculateBudgetSummaryUseCase
 import com.budget.householdbook.domain.usecase.CancelTransactionUseCase
 import com.budget.householdbook.domain.usecase.RestoreCanceledTransactionUseCase
 import com.budget.householdbook.domain.usecase.CategoryUseCases
+import com.budget.householdbook.domain.usecase.SharedCategorySync
 import com.budget.householdbook.domain.usecase.DeleteCategoryUseCase
 import com.budget.householdbook.domain.usecase.DeleteIgnoredKeywordUseCase
 import com.budget.householdbook.domain.usecase.UpdateEnabledInstitutionsUseCase
@@ -143,7 +144,8 @@ val repositoryModule = module {
     single { SecureCredentialManager(androidContext()) }
     single { KbQuickInquiryScraper() }
     single { BackgroundWorkScheduler(androidContext()) } bind BackgroundTaskScheduler::class
-    single { RemoteSyncManager(androidContext(), get(), get(), get()) }
+    single { RemoteSyncManager(androidContext(), get(), get(), get(), get()) }
+    factoryOf(::SharedCategorySync)
 
     singleOf(::RoomTransactionRunner) { bind<TransactionRunner>() }
     singleOf(::RoomLedgerSpaceRepository) { bind<LedgerSpaceRepository>() }

@@ -12,6 +12,7 @@ import com.budget.householdbook.data.local.entity.MealSavingLogEntity
 import com.budget.householdbook.data.local.entity.MerchantCategoryRuleEntity
 import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
+import com.budget.householdbook.domain.model.SyncStatus
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.QueueStatus
 import com.budget.householdbook.domain.model.TransactionType
@@ -58,8 +59,30 @@ interface CategoryDao {
     @Update
     suspend fun updateCategory(category: CategoryEntity)
 
-    @Query("UPDATE categories SET isArchived = 1 WHERE id = :categoryId OR parentId = :categoryId")
-    suspend fun archiveCategoryAndSubs(categoryId: Long)
+    /** 지운 분류도 남겨 두므로(기존 거래 표시용) 공용 분류 동기화 때 isArchived도 함께 맞춤 */
+    @Query(
+        """
+        UPDATE categories
+        SET isArchived = 1, updatedAt = :updatedAt, syncStatus = :syncStatus
+        WHERE id = :categoryId OR parentId = :categoryId
+        """
+    )
+    suspend fun archiveCategoryAndSubs(categoryId: Long, updatedAt: Long, syncStatus: SyncStatus)
+
+    @Query("SELECT * FROM categories WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): CategoryEntity?
+
+    @Query("SELECT * FROM categories WHERE remoteId = :remoteId LIMIT 1")
+    suspend fun getByRemoteId(remoteId: String): CategoryEntity?
+
+    @Query("SELECT * FROM categories WHERE spaceId = :spaceId ORDER BY sortOrder ASC, id ASC")
+    suspend fun getAllBySpaceIncludingArchived(spaceId: String): List<CategoryEntity>
+
+    @Query("SELECT COUNT(*) FROM categories WHERE spaceId = :spaceId AND syncStatus = 'PENDING_UPLOAD'")
+    suspend fun countPendingUploads(spaceId: String): Int
+
+    @Query("UPDATE categories SET syncStatus = 'SYNCED' WHERE id IN (:ids)")
+    suspend fun markSynced(ids: List<Long>)
 }
 
 @Dao

@@ -1,6 +1,7 @@
 package com.budget.householdbook.domain.usecase
 
 import com.budget.householdbook.core.database.AppDatabase
+import com.budget.householdbook.domain.model.CategoryRemoteIds
 import com.budget.householdbook.domain.model.QueueKind
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -33,6 +34,21 @@ class SeedAndSampleDataUseCasesTest {
         assertTrue(transactions.state.value.isEmpty())
         assertTrue(meals.state.value.isEmpty())
         assertTrue(pending.state.value.isEmpty())
+    }
+
+    @Test
+    fun `기본 분류는 어느 휴대폰에서 만들어도 같은 원격 ID를 가진다`() = runTest {
+        seed()
+
+        val byId = categories.state.value.associateBy { it.id }
+        categories.state.value.forEach { cat ->
+            val parentName = cat.parentId?.let { byId.getValue(it).name }
+            assertEquals(CategoryRemoteIds.named(cat.spaceId, parentName, cat.name), cat.remoteId)
+        }
+        assertEquals(
+            CategoryRemoteIds.named(AppDatabase.SPACE_ID_SHARED, "식비", "배달/외식"),
+            categories.state.value.single { it.name == "배달/외식" }.remoteId
+        )
     }
 
     @Test

@@ -71,6 +71,23 @@ function transaction(remoteId, overrides = {}) {
   };
 }
 
+/** 앱(RemoteSyncManager.toPayload)이 올리는 공용 분류와 같은 모양 */
+function category(remoteId, overrides = {}) {
+  return {
+    remoteId,
+    parentRemoteId: null,
+    spaceId: 'space_shared_default',
+    transactionType: 'EXPENSE',
+    name: '식비',
+    emoji: '🍔',
+    colorHex: '#EF4444',
+    sortOrder: 1,
+    isArchived: false,
+    updatedAt: 1,
+    ...overrides,
+  };
+}
+
 /** 규칙을 끈 상태로 기존 방(과 거래)을 만들어 둠 */
 async function seedRoom(memberEmails = [OWNER.email]) {
   await env.withSecurityRulesDisabled(async (ctx) => {
@@ -184,6 +201,52 @@ describe('공유 거래 내용 검증', () => {
     const db = googleUser(OWNER);
     await assertFails(setDoc(doc(db, 'shared_spaces', ROOM, 'transactions', 'tx-a'), transaction('tx-b')));
     await assertFails(setDoc(doc(db, 'shared_spaces', ROOM, 'transactions', 'tx-c'), transaction('tx-c', { amount: '18900' })));
+  });
+});
+
+describe('공용 분류', () => {
+  const categoryRef = (db, id) => doc(db, 'shared_spaces', ROOM, 'categories', id);
+
+  test('방 멤버는 공용 분류를 읽고 올리고 숨길 수 있다', async () => {
+    await seedRoom([OWNER.email, PARTNER.email]);
+    const owner = googleUser(OWNER);
+    await assertSucceeds(setDoc(categoryRef(owner, 'cat-1'), category('cat-1')));
+    await assertSucceeds(setDoc(categoryRef(owner, 'cat-2'), category('cat-2', { parentRemoteId: 'cat-1', name: '배달/외식' })));
+
+    const partner = googleUser(PARTNER);
+    await assertSucceeds(getDocs(collection(partner, 'shared_spaces', ROOM, 'categories')));
+    await assertSucceeds(setDoc(categoryRef(partner, 'cat-1'), category('cat-1', { isArchived: true, updatedAt: 2 })));
+  });
+
+  test('멤버가 아니면 공용 분류를 읽거나 쓸 수 없다', async () => {
+    await seedRoom();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(categoryRef(ctx.firestore(), 'cat-1'), category('cat-1'));
+    });
+    const stranger = googleUser(STRANGER);
+    await assertFails(getDoc(categoryRef(stranger, 'cat-1')));
+    await assertFails(setDoc(categoryRef(stranger, 'cat-2'), category('cat-2')));
+    await assertFails(deleteDoc(categoryRef(stranger, 'cat-1')));
+  });
+
+  test('개인 분류, 문서 ID와 다른 remoteId, 빈 이름·너무 긴 이름, 잘못된 유형은 거부된다', async () => {
+    await seedRoom();
+    const db = googleUser(OWNER);
+    await assertFails(setDoc(categoryRef(db, 'cat-p'), category('cat-p', { spaceId: 'space_personal_default' })));
+    await assertFails(setDoc(categoryRef(db, 'cat-a'), category('cat-b')));
+    await assertFails(setDoc(categoryRef(db, 'cat-e'), category('cat-e', { name: '' })));
+    await assertFails(setDoc(categoryRef(db, 'cat-l'), category('cat-l', { name: '가'.repeat(51) })));
+    await assertSucceeds(setDoc(categoryRef(db, 'cat-m'), category('cat-m', { name: '가'.repeat(50) })));
+    await assertFails(setDoc(categoryRef(db, 'cat-t'), category('cat-t', { transactionType: 'GIFT' })));
+    await assertFails(setDoc(categoryRef(db, 'cat-u'), category('cat-u', { updatedAt: '1' })));
+  });
+
+  test('혼자 남은 방장은 탈퇴하며 공용 분류도 지울 수 있다', async () => {
+    await seedRoom();
+    const owner = googleUser(OWNER);
+    await assertSucceeds(setDoc(categoryRef(owner, 'cat-1'), category('cat-1')));
+    const cats = await assertSucceeds(getDocs(collection(owner, 'shared_spaces', ROOM, 'categories')));
+    for (const d of cats.docs) await assertSucceeds(deleteDoc(d.ref));
   });
 });
 

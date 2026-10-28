@@ -1,8 +1,10 @@
 package com.budget.householdbook.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.budget.householdbook.domain.model.CategoryRemoteIds
 import com.budget.householdbook.domain.model.IngestionSource
 import com.budget.householdbook.domain.model.MealType
 import com.budget.householdbook.domain.model.QueueKind
@@ -36,7 +38,7 @@ data class LedgerSpaceEntity(
  */
 @Entity(
     tableName = "categories",
-    indices = [Index(value = ["spaceId"]), Index(value = ["parentId"])]
+    indices = [Index(value = ["spaceId"]), Index(value = ["parentId"]), Index(value = ["remoteId"], unique = true)]
 )
 data class CategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0L,
@@ -48,7 +50,11 @@ data class CategoryEntity(
     val colorHex: String = "#2563EB",
     val sortOrder: Int = 0,
     val isArchived: Boolean = false,
-    val syncStatus: SyncStatus = SyncStatus.SYNCED
+    val syncStatus: SyncStatus = SyncStatus.SYNCED,
+    /** 휴대폰마다 다른 id 대신 함께 쓰는 사람끼리 같은 분류를 가리키는 값 ([CategoryRemoteIds]) */
+    @ColumnInfo(defaultValue = "") val remoteId: String = CategoryRemoteIds.newId(),
+    /** 마지막으로 바꾼 시각 (공용 분류 동기화에서 더 최근 것을 남김, 기본 분류는 0) */
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0L
 )
 
 /**

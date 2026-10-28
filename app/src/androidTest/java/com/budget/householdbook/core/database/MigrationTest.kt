@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.budget.householdbook.domain.model.CategoryRemoteIds
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -57,6 +58,41 @@ class MigrationTest {
     }
 
     @Test
+    fun v2에서_v3로_올리면_분류마다_장부와_이름으로_정한_원격_ID가_생긴다() {
+        helper.createDatabase(TEST_DB, 2).apply {
+            insertCategory(id = 1, spaceId = "space_shared_default", parentId = null, name = "식비")
+            insertCategory(id = 2, spaceId = "space_shared_default", parentId = 1, name = "배달/외식")
+            insertCategory(id = 3, spaceId = "space_personal_default", parentId = null, name = "식비")
+            // 예전에는 같은 이름 분류를 막지 않았음 (숨긴 분류 + 다시 만든 분류)
+            insertCategory(id = 4, spaceId = "space_shared_default", parentId = null, name = "식비", isArchived = true)
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 3, true, Migrations.MIGRATION_2_3)
+
+        val remoteIds = db.query("SELECT id, remoteId, updatedAt FROM categories ORDER BY id").use { cursor ->
+            buildMap {
+                while (cursor.moveToNext()) {
+                    assertEquals(0L, cursor.getLong(2))
+                    put(cursor.getLong(0), cursor.getString(1))
+                }
+            }
+        }
+        val sharedFood = CategoryRemoteIds.named("space_shared_default", null, "식비")
+        assertEquals(sharedFood, remoteIds[1])
+        assertEquals(
+            CategoryRemoteIds.named("space_shared_default", "식비", "배달/외식"),
+            remoteIds[2]
+        )
+        assertEquals(
+            CategoryRemoteIds.named("space_personal_default", null, "식비"),
+            remoteIds[3]
+        )
+        // 숨긴 쪽에 로컬 id를 붙여 겹치지 않게
+        assertEquals("$sharedFood-4", remoteIds[4])
+    }
+
+    @Test
     fun 모든_마이그레이션을_거친_DB를_Room이_정상적으로_연다() {
         helper.createDatabase(TEST_DB, 1).close()
 
@@ -75,6 +111,21 @@ class MigrationTest {
             """
             INSERT INTO transactions (id, remoteId, spaceId, type, amount, categoryId, subCategoryId, merchantOrTitle, memo, isCanceled, originQueueId, authorName, transactionDate, updatedAt, syncStatus)
             VALUES ($id, '$remoteId', 'space_shared_default', 'EXPENSE', $amount, 1, NULL, '테스트', '', 0, NULL, '나', 0, 0, 'SYNCED')
+            """.trimIndent()
+        )
+    }
+
+    private fun androidx.sqlite.db.SupportSQLiteDatabase.insertCategory(
+        id: Long,
+        spaceId: String,
+        parentId: Long?,
+        name: String,
+        isArchived: Boolean = false
+    ) {
+        execSQL(
+            """
+            INSERT INTO categories (id, spaceId, parentId, transactionType, name, emoji, colorHex, sortOrder, isArchived, syncStatus)
+            VALUES ($id, '$spaceId', ${parentId ?: "NULL"}, 'EXPENSE', '$name', '🍔', '#EF4444', 0, ${if (isArchived) 1 else 0}, 'SYNCED')
             """.trimIndent()
         )
     }

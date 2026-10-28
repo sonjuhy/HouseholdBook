@@ -15,6 +15,7 @@ import com.budget.householdbook.data.local.entity.MealSavingLogEntity
 import com.budget.householdbook.data.local.entity.MerchantCategoryRuleEntity
 import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
+import com.budget.householdbook.domain.model.SyncStatus
 import com.budget.householdbook.domain.model.MealPeriodTotal
 import com.budget.householdbook.domain.model.QueueStatus
 import com.budget.householdbook.domain.model.TransactionType
@@ -50,7 +51,14 @@ class RoomCategoryRepository(private val dao: CategoryDao) : CategoryRepository 
     override suspend fun getCategoriesBySpaceOnce(spaceId: String): List<CategoryEntity> = dao.getCategoriesBySpaceOnce(spaceId)
     override suspend fun insertCategory(category: CategoryEntity): Long = dao.insertCategory(category)
     override suspend fun updateCategory(category: CategoryEntity) = dao.updateCategory(category)
-    override suspend fun archiveCategoryAndSubs(categoryId: Long) = dao.archiveCategoryAndSubs(categoryId)
+    override suspend fun archiveCategoryAndSubs(categoryId: Long, updatedAt: Long, syncStatus: SyncStatus) =
+        dao.archiveCategoryAndSubs(categoryId, updatedAt, syncStatus)
+    override suspend fun getById(id: Long): CategoryEntity? = dao.getById(id)
+    override suspend fun getByRemoteId(remoteId: String): CategoryEntity? = dao.getByRemoteId(remoteId)
+    override suspend fun getAllBySpaceIncludingArchived(spaceId: String): List<CategoryEntity> =
+        dao.getAllBySpaceIncludingArchived(spaceId)
+    override suspend fun countPendingUploads(spaceId: String): Int = dao.countPendingUploads(spaceId)
+    override suspend fun markSynced(ids: List<Long>) = dao.markSynced(ids)
 }
 
 class RoomPendingQueueRepository(private val dao: PendingTransactionDao) : PendingQueueRepository {

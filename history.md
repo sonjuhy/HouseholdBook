@@ -419,3 +419,18 @@
 - `shortLabel()`(공용/개인)을 `ui/SpaceLabels.kt`로 옮겨 대기내역과 같이 사용
 - 테스트: `CategoryUseCasesTest` 6건, `CategoryManagementSectionTest` 3건
 - 남은 일: 분류는 서버로 동기화하지 않음 (공용 분류를 함께 쓰는 사람과 맞추기)
+
+---
+
+## 27단계: 공용 분류 동기화 (2026-10-28)
+- 문제: 분류가 휴대폰에만 있어 상대가 만든 공용 분류가 내 휴대폰에 없고, 공용 거래는 휴대폰마다 다른 로컬 분류 id로 올라가 상대 휴대폰에서 엉뚱한 분류로 보일 수 있었음
+- `CategoryEntity`에 `remoteId`(고유) · `updatedAt` 추가, DB v3 (`MIGRATION_2_3`: 기존 분류는 장부·대분류·이름으로 정한 값)
+- 기본 분류는 `CategoryRemoteIds.named`로 모든 휴대폰에서 같은 원격 ID → 두 사람의 `식비`가 하나로
+- `shared_spaces/{초대번호}/categories/{remoteId}`: 공유 장부 분류를 먼저 받아 합친 뒤 내 변경을 올림, 실시간 수신, `updatedAt` LWW, 삭제는 숨김, 처음 연결 때 같은 이름 분류 합치기 (`SharedCategorySync`)
+- 공용 분류 추가·수정·삭제 → `PENDING_UPLOAD` + 동기화 요청. 개인 분류는 올리지 않음. 이름은 50자까지
+- 거래에 `categoryRemoteId`·`subCategoryRemoteId`를 함께 올리고 받을 때 내 분류 id로 바꿈 (없으면 그 분류를 바로 받아옴, 예전에 받은 거래도 바로잡음)
+- 분류 동기화가 실패해도 거래 동기화는 계속 (서버 규칙 배포 전에도 안전)
+- `firestore.rules`: `categories` 하위 컬렉션 (멤버만, 필드 검증). 회원 탈퇴 시 혼자 남은 방장은 분류 문서도 삭제
+- 검증: 단위 114건(`SharedCategorySyncTest` 7건, 분류 동기화 표시 3건, 기본 분류 원격 ID 1건), 계측 33건(마이그레이션 v2→v3 1건), 규칙 32건(공용 분류 4건). 에뮬레이터 기존 데이터로 v2→v3 마이그레이션 확인(분류 16개에 서로 다른 원격 ID)
+- 새 규칙을 `<firebase-project-id>`에 배포 (dry-run으로 서버 컴파일 확인 후 `firebase deploy --only firestore:rules`, 2026-10-28)
+- **미확인**: 실제 두 휴대폰 사이 동기화 (두 휴대폰 모두 이 버전으로 업데이트 필요, MANUAL_TEST_CHECKLIST 5-1)

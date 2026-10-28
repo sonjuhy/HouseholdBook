@@ -39,6 +39,7 @@
   - `FREE` 티어와 `PRO` 티어 모두 **모든 UI 화면은 오직 로컬 Room DB의 `Flow`만 구독**합니다 (Single Source of Truth).
   - **스키마 버전 관리**: 현재 `version = 2`. `exportSchema = true` + KSP 인자 `room.schemaLocation`으로 `app/schemas/`에 버전별 JSON을 남기고, `core/database/Migrations.kt`의 단계별 마이그레이션만 사용합니다 (데이터를 지우는 `fallbackToDestructiveMigration` 사용 안 함).
     - v1 → v2: `transactions.remoteId` 고유 인덱스 추가 (기존 중복값은 지우지 않고 `-{id}`를 붙여 구분)
+    - v2 → v3: `categories.remoteId`(고유) · `categories.updatedAt` 추가. 기존 분류는 `CategoryRemoteIds.named(장부, 대분류 이름, 이름)`으로 채움 (겹치면 숨긴 쪽에 `-{id}`)
     - 검증: `androidTest/.../MigrationTest.kt` (`room-testing`의 `MigrationTestHelper`, 스키마 JSON을 androidTest 에셋으로 포함)
   - 정산 시작일(`billingStartDay`: 1일~28일 또는 말일 `99`) 변경 시에도 데이터 마이그레이션이 필요 없도록, 거래 일시는 항상 `Long` (UTC Epoch Millis)으로 저장하고 `BETWEEN :startMillis AND :endMillis` 범위 쿼리로 집계합니다.
 
@@ -84,7 +85,12 @@
    - 업로드 대상은 **`공통 생활비` 공간의 `PENDING_UPLOAD` 내역뿐**이며, `PENDING_DELETE` 내역은 원격 문서를 지운 뒤 로컬에서 제거합니다.
    - `shared_spaces/{inviteCode}/transactions`에 `SnapshotListener`를 연결해 상대방 변경(추가·수정·삭제)을 Room에 반영합니다. 충돌은 `updatedAt` 기준 LWW(Last-Write-Wins)로 해결합니다.
    - 초대번호는 `generateInviteCode()`가 `SecureRandom`으로 `HB-XXXX-XXXX` 형식(31자 × 8자리)을 발급합니다.
-   - Firestore 구조: `users/{uid}`(프로필·플랜), `invitations/{inviteCode}__{partnerEmail}`(초대장), `shared_spaces/{inviteCode}`(방 정보 + `memberEmails` 접근 명단 + `joinedEmails` 초대를 수락한 멤버 + `memberNames` 이메일→이름), `shared_spaces/{inviteCode}/transactions/{remoteId}`(공통 생활비 내역).
+   - Firestore 구조: `users/{uid}`(프로필·플랜), `invitations/{inviteCode}__{partnerEmail}`(초대장), `shared_spaces/{inviteCode}`(방 정보 + `memberEmails` 접근 명단 + `joinedEmails` 초대를 수락한 멤버 + `memberNames` 이메일→이름), `shared_spaces/{inviteCode}/transactions/{remoteId}`(공통 생활비 내역), `shared_spaces/{inviteCode}/categories/{remoteId}`(공용 분류).
+   - **공용 분류 동기화**: 분류의 로컬 id는 휴대폰마다 다르므로 `CategoryEntity.remoteId`로 같은 분류를 찾습니다. 기본 분류는 `CategoryRemoteIds.named(장부, 대분류 이름, 이름)`으로 모든 휴대폰에서 같은 값, 새 분류는 무작위 값.
+     - 동기화 순서: 이번 실행에서 처음이거나 올릴 분류(`syncStatus = PENDING_UPLOAD`)가 있으면 공유 장부의 분류를 먼저 읽어 합친 뒤(`SharedCategorySync.applyRemote`) 없거나 내 쪽이 더 최근인 분류를 일괄 업로드 → 그다음 거래 업로드. 분류 동기화가 실패해도(예: 서버 규칙이 예전 버전) 거래 동기화는 계속하고 다음에 다시 시도.
+     - 충돌은 `updatedAt` LWW. 삭제는 `isArchived`로 올림(문서는 지우지 않음). 처음 맞출 때 내 휴대폰에서 따로 만든 같은 이름 공용 분류는 로컬 id를 그대로 두고 원격 ID만 공유 장부 것으로 바꿔 하나로 합침.
+     - 거래 문서에 `categoryRemoteId`·`subCategoryRemoteId`를 함께 올리고(예전 앱용 `categoryId`도 유지), 받을 때 원격 ID로 내 분류 id를 찾음. 아직 없는 분류면 그 분류(와 대분류) 문서를 바로 받아 넣음. 이미 받아 둔 거래도 원격 ID로 찾은 분류가 다르면 바로잡음.
+     - `shared_spaces/{inviteCode}/categories`에도 `SnapshotListener`를 연결해 상대 변경을 반영.
    - 동기화 전 `ensureRoomMembership()`으로 방 문서의 `memberEmails`에 내 이메일이 있는지 확인하고, 방이 없으면 내가 방장인 새 방을 만듭니다. 멤버가 아니면 업로드·수신을 하지 않습니다.
    - 초대 시 상대 이메일을 먼저 `memberEmails`에 추가한 뒤 초대장을 만들고, 상대가 로그인하면 `PENDING` 초대장을 찾아 자동 연결(`ACCEPTED`)합니다. 초대번호만 입력해서 다른 방에 들어가는 방식은 없습니다.
    - 클라우드 기능은 **구글 계정으로 로그인한 사용자만** 사용합니다 (Credential Manager의 구글 계정 선택 창, 익명 로그인 없음). 설정의 `Google로 계속하기` 한 번으로 로그인하며 이메일·이름을 직접 입력받지 않습니다. 장부에 보일 이름은 구글 프로필 이름이 기본이고 `이름 변경`으로 바꿀 수 있습니다 (`users/{uid}.displayName`과 방 문서 `memberNames`에 반영).
@@ -100,7 +106,7 @@
    - 모든 규칙은 `sign_in_provider == 'google.com'` + `email_verified` 인 구글 로그인 사용자만 허용합니다 (익명 로그인 차단).
    - **구글 로그인 방식**: Credential Manager(`androidx.credentials` + `googleid`)의 `GetSignInWithGoogleOption`으로 Google ID 토큰을 받고 `GoogleAuthProvider.getCredential()` → `FirebaseAuth.signInWithCredential()`로 로그인합니다. 웹 클라이언트 ID는 google-services 플러그인이 만드는 `default_web_client_id` 리소스를 실행 중에 찾아 쓰며, 없으면(=Firebase에 SHA-1 미등록 상태로 받은 `google-services.json`) 설정 안내 문구를 보여줍니다. R8용 keep 규칙은 `keepRules/rules.keep`에 있습니다.
    - `users/{uid}`: 본인만 읽기·쓰기. `uid`/`email` 필드는 토큰 값과 같아야 합니다.
-   - `shared_spaces/{inviteCode}`: 방 문서는 `memberEmails`에 포함된 멤버만 조회·수정합니다. 멤버 명단 변경은 **방장은 자유롭게(방장 제외 불가)**, 방장이 아닌 멤버는 초대(추가)·자기 참여 기록·아직 참여하지 않은 초대 취소·자기 나가기만 할 수 있고, 참여한 다른 멤버를 내보낼 수 없습니다. `joinedEmails`는 항상 `memberEmails` 안에 있어야 합니다 (`joinedEmails`가 없는 예전 방도 허용). 새 방은 `HB-XXXX-XXXX` 형식(`isValidInviteCode`)일 때만, 나 혼자 멤버·방장으로 만들 수 있습니다. 방장은 `ownerEmail`로 판단하며(`ownerUid`는 참고용), 방장 정보는 **방장 넘기기**(지금 방장만, 이미 참여한 멤버에게만, 같은 변경에서 명단은 그대로)와 새 방장이 `ownerUid`를 자기 uid로 채우는 경우에만 바뀝니다. 방 삭제는 방장만 할 수 있고(회원 탈퇴 시 혼자 남은 방장의 정리), 멤버는 최대 10명입니다. 하위 `transactions`도 멤버만 읽고 쓰며 `remoteId`·`spaceId`·`amount`·`updatedAt`을 검증합니다.
+   - `shared_spaces/{inviteCode}`: 방 문서는 `memberEmails`에 포함된 멤버만 조회·수정합니다. 멤버 명단 변경은 **방장은 자유롭게(방장 제외 불가)**, 방장이 아닌 멤버는 초대(추가)·자기 참여 기록·아직 참여하지 않은 초대 취소·자기 나가기만 할 수 있고, 참여한 다른 멤버를 내보낼 수 없습니다. `joinedEmails`는 항상 `memberEmails` 안에 있어야 합니다 (`joinedEmails`가 없는 예전 방도 허용). 새 방은 `HB-XXXX-XXXX` 형식(`isValidInviteCode`)일 때만, 나 혼자 멤버·방장으로 만들 수 있습니다. 방장은 `ownerEmail`로 판단하며(`ownerUid`는 참고용), 방장 정보는 **방장 넘기기**(지금 방장만, 이미 참여한 멤버에게만, 같은 변경에서 명단은 그대로)와 새 방장이 `ownerUid`를 자기 uid로 채우는 경우에만 바뀝니다. 방 삭제는 방장만 할 수 있고(회원 탈퇴 시 혼자 남은 방장의 정리), 멤버는 최대 10명입니다. 하위 `transactions`도 멤버만 읽고 쓰며 `remoteId`·`spaceId`·`amount`·`updatedAt`을 검증합니다. 하위 `categories`도 멤버만 읽고 쓰며 `remoteId`(문서 ID와 같음)·`spaceId`(공통 생활비만)·`name`(1~50자)·`transactionType`·`isArchived`·`updatedAt`·`parentRemoteId`를 검증합니다.
    - `invitations/{inviteCode}__{email}`: 방 멤버만, 이미 `memberEmails`에 추가된 상대에게만 만들 수 있습니다. 초대한 사람·초대받은 사람만 볼 수 있고, 초대받은 사람은 수락/거절 상태만 바꿀 수 있습니다.
    - **회원 탈퇴**(`RemoteSyncManager.deleteAccount`)는 서버 함수 없이 앱에서 처리합니다: Credential Manager로 구글 계정 재확인(`FirebaseUser.reauthenticate`) → 방 정리 → `invitations`(`inviterUid == 나`, `partnerEmail == 나` 쿼리) 일괄 삭제 → `users/{uid}` 삭제 → `FirebaseUser.delete()`. 이 휴대폰 기록까지 지우는 경우 `ActivityManager.clearApplicationUserData()`(`AndroidLocalDataResetter`)를 씁니다.
    - 규칙 파일은 앱 코드와 함께 바뀌므로, 앱 배포 전 `firebase deploy --only firestore:rules`로 게시해야 합니다. 예전 경로(`shared_spaces/__user_profiles__`, `__invitations__`, 방 문서 없는 예전 방)는 새 규칙에서 접근할 수 없습니다.

@@ -1,5 +1,6 @@
 package com.budget.householdbook.domain.repository
 
+import com.budget.householdbook.domain.model.SyncStatus
 import com.budget.householdbook.domain.model.PendingPaymentAlert
 import com.budget.householdbook.domain.model.BudgetAlert
 import com.budget.householdbook.domain.model.BudgetAlertRecord
@@ -55,7 +56,14 @@ interface CategoryRepository {
     suspend fun getCategoriesBySpaceOnce(spaceId: String): List<CategoryEntity>
     suspend fun insertCategory(category: CategoryEntity): Long
     suspend fun updateCategory(category: CategoryEntity)
-    suspend fun archiveCategoryAndSubs(categoryId: Long)
+    /** 대분류면 세부 분류까지 숨김 (기존 거래 표시를 위해 지우지 않음) */
+    suspend fun archiveCategoryAndSubs(categoryId: Long, updatedAt: Long, syncStatus: SyncStatus)
+    suspend fun getById(id: Long): CategoryEntity?
+    suspend fun getByRemoteId(remoteId: String): CategoryEntity?
+    /** 숨긴 분류 포함 (공용 분류 동기화용) */
+    suspend fun getAllBySpaceIncludingArchived(spaceId: String): List<CategoryEntity>
+    suspend fun countPendingUploads(spaceId: String): Int
+    suspend fun markSynced(ids: List<Long>)
 }
 
 /** 등록 대기 큐 (자동 수집 내역은 반드시 여기로만 들어옴) */

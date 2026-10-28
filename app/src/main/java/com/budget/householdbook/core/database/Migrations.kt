@@ -2,6 +2,7 @@ package com.budget.householdbook.core.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.budget.householdbook.domain.model.CategoryRemoteIds
 
 /**
  * Room 스키마 버전별 마이그레이션
@@ -31,5 +32,39 @@ object Migrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2)
+    /**
+     * v2 → v3: 분류 원격 ID(remoteId) · 수정 시각(updatedAt) 추가 (공용 분류 동기화)
+     * - 이미 있는 분류는 장부·대분류 이름·이름으로 정해지는 값을 넣어 두 사람의 같은 기본 분류가 하나로 합쳐지게 함
+     * - 혹시 같은 값이 겹치면(같은 이름 분류가 둘) 뒤에 로컬 id를 붙여 구분
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE categories ADD COLUMN remoteId TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE categories ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+
+            val used = mutableSetOf<String>()
+            val assigned = mutableListOf<Pair<Long, String>>()
+            db.query(
+                """
+                SELECT c.id, c.spaceId, c.name, p.name
+                FROM categories c LEFT JOIN categories p ON c.parentId = p.id
+                ORDER BY c.isArchived ASC, c.id ASC
+                """.trimIndent()
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(0)
+                    val parentName = if (cursor.isNull(3)) null else cursor.getString(3)
+                    val named = CategoryRemoteIds.named(cursor.getString(1), parentName, cursor.getString(2))
+                    val remoteId = if (used.add(named)) named else "$named-$id".also { used.add(it) }
+                    assigned += id to remoteId
+                }
+            }
+            assigned.forEach { (id, remoteId) ->
+                db.execSQL("UPDATE categories SET remoteId = ? WHERE id = ?", arrayOf<Any>(remoteId, id))
+            }
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_remoteId` ON `categories` (`remoteId`)")
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }

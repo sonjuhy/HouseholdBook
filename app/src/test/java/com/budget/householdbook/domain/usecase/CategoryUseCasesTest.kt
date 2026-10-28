@@ -1,11 +1,16 @@
 package com.budget.householdbook.domain.usecase
 
 import com.budget.householdbook.core.database.AppDatabase
+import com.budget.householdbook.core.datastore.AppUserSettings
+import com.budget.householdbook.data.local.entity.LedgerSpaceEntity
+import com.budget.householdbook.domain.model.SpaceType
+import com.budget.householdbook.domain.model.SyncStatus
 import com.budget.householdbook.data.local.entity.CategoryEntity
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.groupedForSpace
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,8 +31,17 @@ class CategoryUseCasesTest {
             CategoryEntity(id = 11, spaceId = personal, parentId = 10, name = "커피", sortOrder = 1)
         )
     )
-    private val add = AddCategoryUseCase(categories)
-    private val delete = DeleteCategoryUseCase(categories)
+    private val sync = FakeSharedSyncRepository()
+    private val syncShared = SyncSharedChangesUseCase(
+        FakeSettingsRepository(AppUserSettings(currentSpaceId = shared)),
+        FakeLedgerSpaceRepository(
+            listOf(LedgerSpaceEntity(id = shared, name = "공통 생활비", type = SpaceType.SHARED, isRemoteShared = true))
+        ),
+        sync
+    )
+    private val add = AddCategoryUseCase(categories, syncShared)
+    private val update = UpdateCategoryUseCase(categories, syncShared)
+    private val delete = DeleteCategoryUseCase(categories, syncShared)
 
     private fun names(spaceId: String) =
         categories.state.value.groupedForSpace(spaceId).map { g -> g.parent.name to g.subCategories.map { it.name } }
@@ -82,5 +96,43 @@ class CategoryUseCasesTest {
 
         assertTrue(names(personal).isEmpty())
         assertEquals("식비" to listOf("식재료"), names(shared).first())
+    }
+
+    // ---------------- 공용 분류는 함께 쓰는 사람에게 올림 ----------------
+
+    @Test
+    fun `공용 분류를 추가 수정 삭제하면 올릴 표시를 하고 동기화를 요청한다`() = runTest {
+        add(shared, null, TransactionType.EXPENSE, "교통", "🚌", "#007AFF", nowMillis = 100)
+        val created = categories.state.value.single { it.name == "교통" }
+        assertEquals(SyncStatus.PENDING_UPLOAD, created.syncStatus)
+        assertEquals(100L, created.updatedAt)
+
+        categories.markSynced(listOf(created.id))
+        update(created.copy(name = "교통/주유"), nowMillis = 200)
+        assertEquals(SyncStatus.PENDING_UPLOAD, categories.getById(created.id)!!.syncStatus)
+
+        categories.markSynced(listOf(created.id))
+        delete(1, nowMillis = 300)
+        val archived = categories.state.value.filter { it.id == 1L || it.parentId == 1L }
+        assertTrue(archived.all { it.isArchived && it.syncStatus == SyncStatus.PENDING_UPLOAD && it.updatedAt == 300L })
+
+        assertEquals(3, sync.syncCalls.size)
+    }
+
+    @Test
+    fun `개인 분류를 바꿔도 올리지 않는다`() = runTest {
+        add(personal, null, TransactionType.EXPENSE, "취미", "🎮", "#007AFF")
+        update(categories.getById(10)!!.copy(name = "먹거리"))
+        delete(11)
+
+        assertTrue(categories.state.value.filter { it.spaceId == personal }.none { it.syncStatus == SyncStatus.PENDING_UPLOAD })
+        assertTrue(sync.syncCalls.isEmpty())
+        assertFalse(SharedCategorySync(categories).hasPendingUploads())
+    }
+
+    @Test
+    fun `분류 이름은 50자까지만 저장한다`() = runTest {
+        add(shared, null, TransactionType.EXPENSE, "가".repeat(60), "🏷️", "#007AFF")
+        assertEquals(50, categories.state.value.last().name.length)
     }
 }

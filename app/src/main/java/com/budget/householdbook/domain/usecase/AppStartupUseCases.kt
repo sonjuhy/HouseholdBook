@@ -8,6 +8,7 @@ import com.budget.householdbook.data.local.entity.MealSavingLogEntity
 import com.budget.householdbook.data.local.entity.MerchantCategoryRuleEntity
 import com.budget.householdbook.data.local.entity.PendingTransactionEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
+import com.budget.householdbook.domain.model.CategoryRemoteIds
 import com.budget.householdbook.domain.model.IngestionSource
 import com.budget.householdbook.domain.model.MealType
 import com.budget.householdbook.domain.model.QueueKind
@@ -40,6 +41,17 @@ class SeedInitialDataUseCase(
         if (settings.isSeedCompleted) return
 
         transactionRunner.runInTransaction {
+            // 기본 분류는 장부·대분류·이름으로 원격 ID를 정해, 함께 쓰는 사람의 같은 기본 분류와 하나로 합쳐지게 함
+            val seededNames = mutableMapOf<Long, String>()
+            suspend fun insertSeed(category: CategoryEntity): Long {
+                val parentName = category.parentId?.let { seededNames[it] }
+                val id = categoryRepository.insertCategory(
+                    category.copy(remoteId = CategoryRemoteIds.named(category.spaceId, parentName, category.name))
+                )
+                seededNames[id] = category.name
+                return id
+            }
+
             val sharedId = AppDatabase.SPACE_ID_SHARED
             val personalId = AppDatabase.SPACE_ID_PERSONAL
 
@@ -69,30 +81,30 @@ class SeedInitialDataUseCase(
             )
 
             // 공통 생활비 상위 & 세부 카테고리 시드
-            val foodParentId = categoryRepository.insertCategory(
+            val foodParentId = insertSeed(
                 CategoryEntity(spaceId = sharedId, name = "식비", emoji = "🍔", colorHex = "#EF4444", sortOrder = 1)
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(spaceId = sharedId, parentId = foodParentId, name = "식재료/장보기", emoji = "🥬", colorHex = "#EF4444", sortOrder = 1)
             )
-            val delivSubId = categoryRepository.insertCategory(
+            val delivSubId = insertSeed(
                 CategoryEntity(spaceId = sharedId, parentId = foodParentId, name = "배달/외식", emoji = "🛵", colorHex = "#EF4444", sortOrder = 2)
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(spaceId = sharedId, parentId = foodParentId, name = "카페/베이커리", emoji = "☕", colorHex = "#EF4444", sortOrder = 3)
             )
 
-            val livingParentId = categoryRepository.insertCategory(
+            val livingParentId = insertSeed(
                 CategoryEntity(spaceId = sharedId, name = "주거/생활", emoji = "🏠", colorHex = "#2563EB", sortOrder = 2)
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(spaceId = sharedId, parentId = livingParentId, name = "생필품/마트", emoji = "🧻", colorHex = "#2563EB", sortOrder = 1)
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(spaceId = sharedId, parentId = livingParentId, name = "관리비/공과금", emoji = "💡", colorHex = "#2563EB", sortOrder = 2)
             )
 
-            val sharedIncomeParentId = categoryRepository.insertCategory(
+            val sharedIncomeParentId = insertSeed(
                 CategoryEntity(
                     spaceId = sharedId,
                     transactionType = TransactionType.INCOME,
@@ -102,7 +114,7 @@ class SeedInitialDataUseCase(
                     sortOrder = 10
                 )
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(
                     spaceId = sharedId,
                     parentId = sharedIncomeParentId,
@@ -115,27 +127,27 @@ class SeedInitialDataUseCase(
             )
 
             // 내 개인 용돈 상위 & 세부 카테고리 시드
-            val allowanceFoodId = categoryRepository.insertCategory(
+            val allowanceFoodId = insertSeed(
                 CategoryEntity(spaceId = personalId, name = "식음료/간식", emoji = "☕", colorHex = "#059669", sortOrder = 1)
             )
-            val coffeeSubId = categoryRepository.insertCategory(
+            val coffeeSubId = insertSeed(
                 CategoryEntity(spaceId = personalId, parentId = allowanceFoodId, name = "커피/디저트", emoji = "🧋", colorHex = "#059669", sortOrder = 1)
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(spaceId = personalId, parentId = allowanceFoodId, name = "점심/회식", emoji = "🍱", colorHex = "#059669", sortOrder = 2)
             )
 
-            val hobbyParentId = categoryRepository.insertCategory(
+            val hobbyParentId = insertSeed(
                 CategoryEntity(spaceId = personalId, name = "취미/쇼핑", emoji = "🎮", colorHex = "#8B5CF6", sortOrder = 2)
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(spaceId = personalId, parentId = hobbyParentId, name = "의류/패션", emoji = "👕", colorHex = "#8B5CF6", sortOrder = 1)
             )
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(spaceId = personalId, parentId = hobbyParentId, name = "문화/구독", emoji = "🎬", colorHex = "#8B5CF6", sortOrder = 2)
             )
 
-            categoryRepository.insertCategory(
+            insertSeed(
                 CategoryEntity(
                     spaceId = personalId,
                     transactionType = TransactionType.INCOME,

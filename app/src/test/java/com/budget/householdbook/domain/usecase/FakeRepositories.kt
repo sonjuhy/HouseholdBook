@@ -120,15 +120,28 @@ class FakeCategoryRepository(categories: List<CategoryEntity> = emptyList()) : C
     override suspend fun getCategoriesBySpaceOnce(spaceId: String) =
         state.value.filter { it.spaceId == spaceId && !it.isArchived }.sortedWith(compareBy({ it.sortOrder }, { it.id }))
     override suspend fun insertCategory(category: CategoryEntity): Long {
+        check(state.value.none { it.remoteId == category.remoteId && it.id != category.id }) { "remoteId 중복: ${category.remoteId}" }
         val id = if (category.id == 0L) nextId++ else category.id
         state.value = state.value.filter { it.id != id } + category.copy(id = id)
         return id
     }
     override suspend fun updateCategory(category: CategoryEntity) {
+        check(state.value.none { it.remoteId == category.remoteId && it.id != category.id }) { "remoteId 중복: ${category.remoteId}" }
         state.value = state.value.map { if (it.id == category.id) category else it }
     }
-    override suspend fun archiveCategoryAndSubs(categoryId: Long) {
-        state.value = state.value.map { if (it.id == categoryId || it.parentId == categoryId) it.copy(isArchived = true) else it }
+    override suspend fun archiveCategoryAndSubs(categoryId: Long, updatedAt: Long, syncStatus: SyncStatus) {
+        state.value = state.value.map {
+            if (it.id == categoryId || it.parentId == categoryId) it.copy(isArchived = true, updatedAt = updatedAt, syncStatus = syncStatus) else it
+        }
+    }
+    override suspend fun getById(id: Long) = state.value.firstOrNull { it.id == id }
+    override suspend fun getByRemoteId(remoteId: String) = state.value.firstOrNull { it.remoteId == remoteId }
+    override suspend fun getAllBySpaceIncludingArchived(spaceId: String) =
+        state.value.filter { it.spaceId == spaceId }.sortedWith(compareBy({ it.sortOrder }, { it.id }))
+    override suspend fun countPendingUploads(spaceId: String) =
+        state.value.count { it.spaceId == spaceId && it.syncStatus == SyncStatus.PENDING_UPLOAD }
+    override suspend fun markSynced(ids: List<Long>) {
+        state.value = state.value.map { if (it.id in ids) it.copy(syncStatus = SyncStatus.SYNCED) else it }
     }
 }
 

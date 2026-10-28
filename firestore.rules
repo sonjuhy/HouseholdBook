@@ -170,6 +170,21 @@ service cloud.firestore {
           && request.resource.data.amount is int
           && request.resource.data.updatedAt is int;
       }
+
+      // 공통 생활비 분류: 방 멤버만 읽고 쓰기 (지운 분류는 isArchived로 남겨 기존 거래가 계속 그 분류로 보이게 함)
+      match /categories/{remoteId} {
+        allow read, delete: if isRoomMember(inviteCode);
+        allow create, update: if isRoomMember(inviteCode)
+          && request.resource.data.remoteId == remoteId
+          && request.resource.data.spaceId == 'space_shared_default'
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 50
+          && request.resource.data.transactionType in ['EXPENSE', 'INCOME', 'TRANSFER']
+          && request.resource.data.isArchived is bool
+          && request.resource.data.updatedAt is int
+          && (request.resource.data.parentRemoteId == null || request.resource.data.parentRemoteId is string);
+      }
     }
   }
 }

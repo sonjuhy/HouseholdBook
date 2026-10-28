@@ -79,7 +79,7 @@ class HouseholdTypeConverters {
         IgnoredKeywordEntity::class,
         MerchantCategoryRuleEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(HouseholdTypeConverters::class)

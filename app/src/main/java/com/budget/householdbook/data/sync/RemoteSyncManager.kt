@@ -15,9 +15,11 @@ import com.budget.householdbook.data.local.dao.LedgerSpaceDao
 import com.budget.householdbook.data.local.dao.TransactionDao
 import com.budget.householdbook.data.local.entity.TransactionEntity
 import com.budget.householdbook.data.work.BackgroundWorkScheduler
+import com.budget.householdbook.domain.model.RemoteCategory
 import com.budget.householdbook.domain.model.SyncStatus
 import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.domain.model.UserTier
+import com.budget.householdbook.domain.usecase.SharedCategorySync
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -81,7 +83,8 @@ class RemoteSyncManager(
     private val context: Context,
     private val transactionDao: TransactionDao,
     private val spaceDao: LedgerSpaceDao,
-    private val workScheduler: BackgroundWorkScheduler
+    private val workScheduler: BackgroundWorkScheduler,
+    private val categorySync: SharedCategorySync
 ) {
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -90,6 +93,10 @@ class RemoteSyncManager(
 
     private var activeRoomCode: String? = null
     private var snapshotRegistration: ListenerRegistration? = null
+    private var categoryRegistration: ListenerRegistration? = null
+
+    // 이번 실행 중 공용 분류를 처음 맞춘 "이메일|초대번호" (그 뒤로는 바꾼 분류가 있을 때만 분류 목록을 읽음)
+    private var categoriesSyncedRoomKey: String? = null
 
     // 이번 실행 중 멤버 확인을 마친 "이메일|초대번호" (매 동기화마다 방 문서를 다시 읽지 않기 위함)
     private var verifiedRoomKey: String? = null
@@ -174,6 +181,72 @@ class RemoteSyncManager(
 
     private fun roomTransactions(firestore: FirebaseFirestore, inviteCode: String) =
         roomDoc(firestore, inviteCode).collection("transactions")
+
+    private fun roomCategories(firestore: FirebaseFirestore, inviteCode: String) =
+        roomDoc(firestore, inviteCode).collection("categories")
+
+    private fun DocumentSnapshot.toRemoteCategory(): RemoteCategory? {
+        val name = getString("name")?.takeIf { it.isNotBlank() } ?: return null
+        return RemoteCategory(
+            remoteId = getString("remoteId") ?: id,
+            parentRemoteId = getString("parentRemoteId"),
+            transactionType = runCatching { TransactionType.valueOf(getString("transactionType").orEmpty()) }
+                .getOrDefault(TransactionType.EXPENSE),
+            name = name,
+            emoji = getString("emoji").orEmpty().ifBlank { "🏷️" },
+            colorHex = getString("colorHex") ?: "#2563EB",
+            sortOrder = getLong("sortOrder")?.toInt() ?: 0,
+            isArchived = getBoolean("isArchived") ?: false,
+            updatedAt = getLong("updatedAt") ?: 0L
+        )
+    }
+
+    private fun RemoteCategory.toPayload() = mapOf(
+        "remoteId" to remoteId,
+        "parentRemoteId" to parentRemoteId,
+        "spaceId" to AppDatabase.SPACE_ID_SHARED,
+        "transactionType" to transactionType.name,
+        "name" to name,
+        "emoji" to emoji,
+        "colorHex" to colorHex,
+        "sortOrder" to sortOrder,
+        "isArchived" to isArchived,
+        "updatedAt" to updatedAt
+    )
+
+    /**
+     * 공용 분류 맞추기: 공유 장부의 분류를 먼저 받아 합친 뒤, 공유 장부에 없거나 내 쪽이 더 최근인 분류를 올림
+     * (거래보다 먼저 올려야 상대 휴대폰이 거래의 분류를 찾을 수 있음)
+     */
+    private suspend fun syncCategories(firestore: FirebaseFirestore, inviteCode: String) {
+        val ref = roomCategories(firestore, inviteCode)
+        val remote = ref.get().await().documents.mapNotNull { it.toRemoteCategory() }
+        categorySync.applyRemote(remote, isFullSnapshot = true)
+
+        val remoteUpdatedAt = remote.associate { it.remoteId to it.updatedAt }
+        val uploads = categorySync.toUpload(remoteUpdatedAt)
+        uploads.chunked(400).forEach { chunk ->
+            val batch = firestore.batch()
+            chunk.forEach { (_, category) -> batch.set(ref.document(category.remoteId), category.toPayload()) }
+            batch.commit().await()
+        }
+        categorySync.markUploaded(uploads.map { it.first }, remoteUpdatedAt)
+    }
+
+    /** 거래가 가리키는 공용 분류가 아직 내 휴대폰에 없으면 공유 장부에서 (대분류까지) 받아옴 */
+    private suspend fun resolveSharedCategoryId(inviteCode: String, remoteId: String?): Long? {
+        if (remoteId.isNullOrBlank()) return null
+        categorySync.localIdOf(remoteId)?.let { return it }
+        return runCatching {
+            val ref = roomCategories(FirebaseFirestore.getInstance(), inviteCode)
+            val category = ref.document(remoteId).get().await().toRemoteCategory() ?: return null
+            val parent = category.parentRemoteId
+                ?.takeIf { categorySync.localIdOf(it) == null }
+                ?.let { ref.document(it).get().await().toRemoteCategory() }
+            categorySync.applyRemote(listOfNotNull(parent, category))
+            categorySync.localIdOf(remoteId)
+        }.getOrNull()
+    }
 
     /**
      * 방 문서를 확인해 내가 멤버인지 검증합니다. 방이 아직 없으면 [allowCreate]일 때 내가 방장인 새 방을 만듭니다.
@@ -806,7 +879,8 @@ class RemoteSyncManager(
             val ref = roomDoc(firestore, room.inviteCode)
             if (room.amIOwner) {
                 val txRefs = roomTransactions(firestore, room.inviteCode).get().await().documents.map { it.reference }
-                deleteInBatches(firestore, txRefs)
+                val categoryRefs = roomCategories(firestore, room.inviteCode).get().await().documents.map { it.reference }
+                deleteInBatches(firestore, txRefs + categoryRefs)
                 ref.delete().await()
             } else {
                 ref.update(
@@ -968,6 +1042,13 @@ class RemoteSyncManager(
 
             ensureRealtimeListener(inviteCode)
 
+            val roomKey = "$email|$inviteCode"
+            if (categoriesSyncedRoomKey != roomKey || categorySync.hasPendingUploads()) {
+                // 분류를 못 맞춰도 거래 동기화는 계속 (서버 규칙이 아직 예전 버전인 경우 등 → 다음 동기화 때 다시 시도)
+                runCatching { syncCategories(firestore, inviteCode) }
+                    .onSuccess { categoriesSyncedRoomKey = roomKey }
+            }
+
             val collectionRef = roomTransactions(firestore, inviteCode)
 
             // 삭제 대기 내역을 먼저 원격에서 지운 뒤 로컬에서도 완전히 제거
@@ -988,8 +1069,11 @@ class RemoteSyncManager(
                         "spaceId" to tx.spaceId,
                         "type" to tx.type.name,
                         "amount" to tx.amount,
+                        // 로컬 id는 휴대폰마다 달라 원격 ID로 분류를 찾음 (예전 버전 앱을 위해 id도 함께)
                         "categoryId" to tx.categoryId,
                         "subCategoryId" to tx.subCategoryId,
+                        "categoryRemoteId" to categorySync.remoteIdOf(tx.categoryId),
+                        "subCategoryRemoteId" to categorySync.remoteIdOf(tx.subCategoryId),
                         "merchantOrTitle" to tx.merchantOrTitle,
                         "memo" to tx.memo,
                         "isCanceled" to tx.isCanceled,
@@ -1035,6 +1119,13 @@ class RemoteSyncManager(
 
         runCatching {
             val firestore = FirebaseFirestore.getInstance()
+            // 함께 쓰는 사람이 공용 분류를 추가·수정·삭제하면 내 휴대폰에도 반영 (권한 오류는 거래 쪽에서 처리)
+            categoryRegistration = roomCategories(firestore, inviteCode)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) return@addSnapshotListener
+                    val remote = snapshot.documents.mapNotNull { it.toRemoteCategory() }
+                    syncScope.launch { runCatching { categorySync.applyRemote(remote, isFullSnapshot = true) } }
+                }
             snapshotRegistration = roomTransactions(firestore, inviteCode)
                 .addSnapshotListener { snapshot, error ->
                     if (error?.isPermissionDenied() == true) {
@@ -1063,8 +1154,14 @@ class RemoteSyncManager(
                             val type = runCatching { TransactionType.valueOf(typeName) }
                                 .getOrDefault(TransactionType.EXPENSE)
                             val amount = doc.getLong("amount") ?: continue
-                            val categoryId = doc.getLong("categoryId") ?: 1L
-                            val subCategoryId = doc.getLong("subCategoryId")
+                            val resolvedCategoryId = resolveSharedCategoryId(inviteCode, doc.getString("categoryRemoteId"))
+                            val categoryId = resolvedCategoryId ?: doc.getLong("categoryId") ?: 1L
+                            val subCategoryRemoteId = doc.getString("subCategoryRemoteId")
+                            val subCategoryId = if (subCategoryRemoteId != null) {
+                                resolveSharedCategoryId(inviteCode, subCategoryRemoteId)
+                            } else {
+                                doc.getLong("subCategoryId")
+                            }
                             val merchantOrTitle = doc.getString("merchantOrTitle") ?: "공유 내역"
                             val memo = doc.getString("memo").orEmpty()
                             val isCanceled = doc.getBoolean("isCanceled") ?: false
@@ -1108,6 +1205,14 @@ class RemoteSyncManager(
                                         syncStatus = SyncStatus.SYNCED
                                     )
                                 )
+                            } else if (
+                                resolvedCategoryId != null && existing.syncStatus == SyncStatus.SYNCED &&
+                                (existing.categoryId != categoryId || existing.subCategoryId != subCategoryId)
+                            ) {
+                                // 업데이트 전에 휴대폰마다 다른 분류 id로 받아 둔 거래를 같은 분류로 바로잡음
+                                transactionDao.insertTransaction(
+                                    existing.copy(categoryId = categoryId, subCategoryId = subCategoryId)
+                                )
                             }
                         }
                     }
@@ -1150,6 +1255,9 @@ class RemoteSyncManager(
     private fun stopRealtimeListener() {
         snapshotRegistration?.remove()
         snapshotRegistration = null
+        categoryRegistration?.remove()
+        categoryRegistration = null
+        categoriesSyncedRoomKey = null
         activeRoomCode = null
     }
 }

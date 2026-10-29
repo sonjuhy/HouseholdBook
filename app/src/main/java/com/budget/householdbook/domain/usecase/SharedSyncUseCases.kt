@@ -181,6 +181,31 @@ class SignInWithGoogleUseCase(
 }
 
 /**
+ * 로그인해 둔 상태에서 받은 함께 쓰기 초대를 수락합니다 (앱을 열거나 앱으로 돌아올 때).
+ * - 로그인할 때와 똑같이 초대한 사람의 공유 장부로 연결하고 함께 쓰기로 바꿈
+ * @return 수락한 초대 (받은 초대가 없거나 확인하지 못했으면 null)
+ */
+class AcceptPendingInvitationUseCase(
+    private val settingsRepository: SettingsRepository,
+    private val sharedSyncRepository: SharedSyncRepository
+) {
+    suspend operator fun invoke(): GoogleLoginResult? {
+        val settings = settingsRepository.userSettingsFlow.first()
+        if (!settings.isLoggedIn) return null
+        val accepted = sharedSyncRepository.acceptPendingInvitationIfSignedIn(settings.userRealName)
+            .getOrNull() ?: return null
+        settingsRepository.saveGoogleLoginProfile(
+            uid = accepted.uid,
+            email = accepted.email,
+            displayName = accepted.displayName,
+            resolvedTier = accepted.resolvedTier
+        )
+        sharedSyncRepository.syncIfEligible(accepted.resolvedTier, isRemoteShared = true)
+        return accepted
+    }
+}
+
+/**
  * 상대방의 구글 계정 이메일로 함께 쓰기 초대장을 보냅니다.
  * @return 초대번호
  */

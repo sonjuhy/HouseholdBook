@@ -92,7 +92,7 @@
      - 거래 문서에 `categoryRemoteId`·`subCategoryRemoteId`를 함께 올리고(예전 앱용 `categoryId`도 유지), 받을 때 원격 ID로 내 분류 id를 찾음. 아직 없는 분류면 그 분류(와 대분류) 문서를 바로 받아 넣음. 이미 받아 둔 거래도 원격 ID로 찾은 분류가 다르면 바로잡음.
      - `shared_spaces/{inviteCode}/categories`에도 `SnapshotListener`를 연결해 상대 변경을 반영.
    - 동기화 전 `ensureRoomMembership()`으로 방 문서의 `memberEmails`에 내 이메일이 있는지 확인하고, 방이 없으면 내가 방장인 새 방을 만듭니다. 멤버가 아니면 업로드·수신을 하지 않습니다.
-   - 초대 시 상대 이메일을 먼저 `memberEmails`에 추가한 뒤 초대장을 만들고, 상대가 로그인하면 `PENDING` 초대장을 찾아 자동 연결(`ACCEPTED`)합니다. 초대번호만 입력해서 다른 방에 들어가는 방식은 없습니다.
+   - 초대 시 상대 이메일을 먼저 `memberEmails`에 추가한 뒤 초대장을 만들고, 상대가 로그인하면 `PENDING` 초대장을 찾아 자동 연결(`ACCEPTED`)합니다. 이미 로그인해 둔 상대는 앱을 열거나 앱으로 돌아올 때(`ON_RESUME`, 15초 간격 제한) `RemoteSyncManager.acceptPendingInvitationIfSignedIn`이 같은 방식으로 수락합니다. 초대번호만 입력해서 다른 방에 들어가는 방식은 없습니다.
    - 클라우드 기능은 **구글 계정으로 로그인한 사용자만** 사용합니다 (Credential Manager의 구글 계정 선택 창, 익명 로그인 없음). 설정의 `Google로 계속하기` 한 번으로 로그인하며 이메일·이름을 직접 입력받지 않습니다. 장부에 보일 이름은 구글 프로필 이름이 기본이고 `이름 변경`으로 바꿀 수 있습니다 (`users/{uid}.displayName`과 방 문서 `memberNames`에 반영).
 2. **WorkManager (`androidx.work:work-runtime-ktx`) — `data/work/`**:
    - `BackgroundWorkScheduler`(Koin single)가 모든 예약을 담당합니다.

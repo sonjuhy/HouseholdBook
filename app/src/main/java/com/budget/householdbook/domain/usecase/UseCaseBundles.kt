@@ -51,6 +51,7 @@ data class MealUseCases(
 /** [Pro] 구글 계정·플랜·함께 쓰기 */
 data class AccountUseCases(
     val signIn: SignInWithGoogleUseCase,
+    val acceptPendingInvitation: AcceptPendingInvitationUseCase,
     val signOut: SignOutGoogleUseCase,
     val invitePartner: InvitePartnerUseCase,
     val updateSharedMembers: UpdateSharedMembersUseCase,

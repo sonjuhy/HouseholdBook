@@ -98,6 +98,9 @@ class RemoteSyncManager(
     // 이번 실행 중 공용 분류를 처음 맞춘 "이메일|초대번호" (그 뒤로는 바꾼 분류가 있을 때만 분류 목록을 읽음)
     private var categoriesSyncedRoomKey: String? = null
 
+    // 마지막으로 받은 초대장을 확인한 시각 (앱을 열고 닫을 때마다 조회하지 않도록)
+    private var lastInvitationCheckAt = 0L
+
     // 이번 실행 중 멤버 확인을 마친 "이메일|초대번호" (매 동기화마다 방 문서를 다시 읽지 않기 위함)
     private var verifiedRoomKey: String? = null
 
@@ -313,6 +316,135 @@ class RemoteSyncManager(
     }
 
     /**
+     * 내 이메일로 온 대기 중 초대장 중 지금 들어갈 수 있는 것
+     * (방이 사라졌거나 명단에서 빠진 초대장은 거절 처리하고 null)
+     */
+    private suspend fun findUsableInvitation(firestore: FirebaseFirestore, uid: String, email: String): DocumentSnapshot? {
+        return findPendingInvitation(firestore, email)?.takeIf { invite ->
+            val code = invite.getString("inviteCode")?.takeIf { isValidInviteCode(it) }
+            val usable = code != null && try {
+                ensureRoomMembership(firestore, code, uid, email, memberNamesCsv = null, allowCreate = false)
+                true
+            } catch (e: NotRoomMemberException) {
+                false // 인터넷 오류 등 다른 실패는 그대로 호출한 쪽에 알림
+            }
+            if (!usable) {
+                runCatching {
+                    invite.reference.set(
+                        mapOf("status" to "DECLINED", "partnerUid" to uid),
+                        SetOptions.merge()
+                    ).await()
+                }
+            }
+            usable
+        }
+    }
+
+    /** 초대 수락: 방 문서·초대장·내 프로필에 기록하고 이 휴대폰의 공통 생활비를 그 공유 장부로 연결 */
+    private suspend fun acceptInvitation(
+        firestore: FirebaseFirestore,
+        inviteSnap: DocumentSnapshot,
+        uid: String,
+        email: String,
+        displayName: String
+    ): GoogleLoginResult {
+        val now = System.currentTimeMillis()
+        val invitedCode = inviteSnap.getString("inviteCode")!!
+        val inviterName = inviteSnap.getString("inviterName") ?: "파트너"
+        val memberNamesCsv = inviteSnap.getString("memberNamesCsv")
+            ?.takeIf { it.isNotBlank() }
+            ?: "$inviterName, $displayName"
+
+        // 초대한 사람이 이미 방 멤버(memberEmails)에 내 이메일을 추가해 두었으므로 멤버 확인만 수행
+        ensureRoomMembership(
+            firestore = firestore,
+            inviteCode = invitedCode,
+            uid = uid,
+            email = email,
+            memberNamesCsv = memberNamesCsv,
+            allowCreate = false
+        )
+
+        // 방 문서에 '참여 중'으로 기록 (방장이 멤버 관리 화면에서 수락 여부를 볼 수 있도록)
+        roomDoc(firestore, invitedCode).set(
+            mapOf(
+                "joinedEmails" to FieldValue.arrayUnion(email),
+                "memberNames" to mapOf(email to displayName),
+                "updatedAt" to now
+            ),
+            SetOptions.merge()
+        ).await()
+
+        // 초대를 받은 구글 계정은 즉시 프리미엄(함께 쓰기) 및 해당 초대방으로 자동 연결
+        val resolvedTier = UserTier.PRO
+        inviteSnap.reference.set(
+            mapOf(
+                "status" to "ACCEPTED",
+                "acceptedAt" to now,
+                "partnerUid" to uid,
+                "partnerName" to displayName
+            ),
+            SetOptions.merge()
+        ).await()
+
+        userProfileDoc(firestore, uid).set(
+            mapOf(
+                "uid" to uid,
+                "email" to email,
+                "displayName" to displayName,
+                "userTier" to resolvedTier.name,
+                "inviteCode" to invitedCode,
+                "memberNamesCsv" to memberNamesCsv,
+                "updatedAt" to now
+            ),
+            SetOptions.merge()
+        ).await()
+
+        spaceDao.updateShareConfig(
+            spaceId = AppDatabase.SPACE_ID_SHARED,
+            memberNamesCsv = memberNamesCsv,
+            inviteCode = invitedCode,
+            isShared = true
+        )
+
+        return GoogleLoginResult(
+            uid = uid,
+            email = email,
+            displayName = displayName,
+            resolvedTier = resolvedTier,
+            inviteCode = invitedCode,
+            memberNamesCsv = memberNamesCsv,
+            isInvitedJoin = true,
+            isExistingUser = true,
+            inviterName = inviterName
+        )
+    }
+
+    /**
+     * 이미 로그인해 둔 상태에서 내 이메일로 새 초대장이 왔으면 수락해 그 공유 장부로 연결
+     * (로그인할 때만 확인하면, 로그인해 둔 사람은 초대를 받아도 다시 로그인해야 했음)
+     * - 앱을 열거나 다시 돌아올 때마다 부르므로 [INVITATION_CHECK_INTERVAL_MS] 안에는 다시 조회하지 않음
+     * @param preferredName 장부에 표시할 내 이름 (비어 있으면 구글 프로필 이름)
+     * @return 수락한 초대 (로그인하지 않았거나 받은 초대가 없으면 null)
+     */
+    suspend fun acceptPendingInvitationIfSignedIn(preferredName: String?): Result<GoogleLoginResult?> {
+        if (!isFirebaseConfigured()) return Result.success(null)
+        val user = currentGoogleUser() ?: return Result.success(null)
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - lastInvitationCheckAt < INVITATION_CHECK_INTERVAL_MS) return Result.success(null)
+        lastInvitationCheckAt = nowMs
+        return runCatching {
+            val email = user.email.orEmpty().trim().lowercase()
+            val firestore = FirebaseFirestore.getInstance()
+            val invite = findUsableInvitation(firestore, user.uid, email) ?: return@runCatching null
+            val displayName = preferredName?.trim()?.takeIf { it.isNotBlank() }
+                ?: user.displayName?.trim()?.takeIf { it.isNotBlank() }
+                ?: email.substringBefore("@")
+            acceptInvitation(firestore, invite, user.uid, email, displayName)
+        }.onFailure { lastInvitationCheckAt = 0L }
+    }
+
+    /**
      * 구글 계정으로 로그인하고, Firestore에서
      * 1) 도착한 초대장(`invitations`)이 있는지 확인하고,
      * 2) 기존 회원(`users`)의 플랜이 PRO인지 FREE인지 확인하여 그에 맞게 자동으로 설정합니다.
@@ -374,96 +506,9 @@ class RemoteSyncManager(
             val now = System.currentTimeMillis()
             val userDocRef = userProfileDoc(firestore, uid)
 
-            // 2. 먼저 내 구글 이메일로 도착한 '함께 쓰기 초대장'이 있는지 확인
-            //    (방이 사라졌거나 명단에서 빠진 초대장은 거절 처리하고 일반 로그인으로 진행)
-            val inviteSnap = findPendingInvitation(firestore, email)?.takeIf { invite ->
-                val code = invite.getString("inviteCode")?.takeIf { isValidInviteCode(it) }
-                val usable = code != null && try {
-                    ensureRoomMembership(firestore, code, uid, email, memberNamesCsv = null, allowCreate = false)
-                    true
-                } catch (e: NotRoomMemberException) {
-                    false // 인터넷 오류 등 다른 실패는 그대로 로그인 실패로 알림
-                }
-                if (!usable) {
-                    runCatching {
-                        invite.reference.set(
-                            mapOf("status" to "DECLINED", "partnerUid" to uid),
-                            SetOptions.merge()
-                        ).await()
-                    }
-                }
-                usable
-            }
-            if (inviteSnap != null) {
-                val invitedCode = inviteSnap.getString("inviteCode")!!
-                val inviterName = inviteSnap.getString("inviterName") ?: "파트너"
-                val memberNamesCsv = inviteSnap.getString("memberNamesCsv")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: "$inviterName, $displayName"
-
-                // 초대한 사람이 이미 방 멤버(memberEmails)에 내 이메일을 추가해 두었으므로 멤버 확인만 수행
-                ensureRoomMembership(
-                    firestore = firestore,
-                    inviteCode = invitedCode,
-                    uid = uid,
-                    email = email,
-                    memberNamesCsv = memberNamesCsv,
-                    allowCreate = false
-                )
-
-                // 초대 수락: 방 문서에 '참여 중'으로 기록 (방장이 멤버 관리 화면에서 수락 여부를 볼 수 있도록)
-                roomDoc(firestore, invitedCode).set(
-                    mapOf(
-                        "joinedEmails" to FieldValue.arrayUnion(email),
-                        "memberNames" to mapOf(email to displayName),
-                        "updatedAt" to now
-                    ),
-                    SetOptions.merge()
-                ).await()
-
-                // 초대를 받은 구글 계정은 즉시 프리미엄(함께 쓰기) 및 해당 초대방으로 자동 연결
-                val resolvedTier = UserTier.PRO
-                inviteSnap.reference.set(
-                    mapOf(
-                        "status" to "ACCEPTED",
-                        "acceptedAt" to now,
-                        "partnerUid" to uid,
-                        "partnerName" to displayName
-                    ),
-                    SetOptions.merge()
-                ).await()
-
-                userDocRef.set(
-                    mapOf(
-                        "uid" to uid,
-                        "email" to email,
-                        "displayName" to displayName,
-                        "userTier" to resolvedTier.name,
-                        "inviteCode" to invitedCode,
-                        "memberNamesCsv" to memberNamesCsv,
-                        "updatedAt" to now
-                    ),
-                    SetOptions.merge()
-                ).await()
-
-                spaceDao.updateShareConfig(
-                    spaceId = AppDatabase.SPACE_ID_SHARED,
-                    memberNamesCsv = memberNamesCsv,
-                    inviteCode = invitedCode,
-                    isShared = true
-                )
-
-                return@runCatching GoogleLoginResult(
-                    uid = uid,
-                    email = email,
-                    displayName = displayName,
-                    resolvedTier = resolvedTier,
-                    inviteCode = invitedCode,
-                    memberNamesCsv = memberNamesCsv,
-                    isInvitedJoin = true,
-                    isExistingUser = true,
-                    inviterName = inviterName
-                )
+            // 2. 먼저 내 구글 이메일로 도착한 '함께 쓰기 초대장'이 있으면 수락하고 그 공유 장부로 연결
+            findUsableInvitation(firestore, uid, email)?.let { invite ->
+                return@runCatching acceptInvitation(firestore, invite, uid, email, displayName)
             }
 
             // 3. 기존에 가입된 구글 계정 프로필에서 PRO인지 FREE인지 확인
@@ -1231,6 +1276,9 @@ class RemoteSyncManager(
         private const val USERS = "users"
         private const val INVITATIONS = "invitations"
         private const val SHARED_SPACES = "shared_spaces"
+
+        /** 로그인해 둔 상태에서 받은 초대장을 다시 확인하기까지 최소 간격 */
+        private const val INVITATION_CHECK_INTERVAL_MS = 15_000L
 
         // 헷갈리는 문자(0/O, 1/I/L)를 뺀 31자 중 8자리 → 약 8,500억 가지 조합
         private const val INVITE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"

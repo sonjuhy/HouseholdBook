@@ -68,6 +68,7 @@ import com.budget.householdbook.domain.usecase.CancelInvitationUseCase
 import com.budget.householdbook.domain.usecase.LeaveSharedSpaceUseCase
 import com.budget.householdbook.domain.usecase.TransferOwnershipUseCase
 import com.budget.householdbook.domain.usecase.DeleteAccountUseCase
+import com.budget.householdbook.domain.usecase.AcceptPendingInvitationUseCase
 import com.budget.householdbook.domain.usecase.QuickSavePendingUseCase
 import com.budget.householdbook.domain.usecase.CheckBudgetAlertUseCase
 import com.budget.householdbook.domain.usecase.CheckCollectionStatusUseCase
@@ -224,6 +225,7 @@ val useCaseModule = module {
     factoryOf(::UpdateSharedMembersUseCase)
     factoryOf(::UpdateUserTierUseCase)
     factoryOf(::SignInWithGoogleUseCase)
+    factoryOf(::AcceptPendingInvitationUseCase)
     factoryOf(::InvitePartnerUseCase)
     factoryOf(::LoadSharedMembersUseCase)
     factoryOf(::CancelInvitationUseCase)

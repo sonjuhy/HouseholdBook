@@ -434,3 +434,13 @@
 - 검증: 단위 114건(`SharedCategorySyncTest` 7건, 분류 동기화 표시 3건, 기본 분류 원격 ID 1건), 계측 33건(마이그레이션 v2→v3 1건), 규칙 32건(공용 분류 4건). 에뮬레이터 기존 데이터로 v2→v3 마이그레이션 확인(분류 16개에 서로 다른 원격 ID)
 - 새 규칙을 `<firebase-project-id>`에 배포 (dry-run으로 서버 컴파일 확인 후 `firebase deploy --only firestore:rules`, 2026-10-28)
 - **미확인**: 실제 두 휴대폰 사이 동기화 (두 휴대폰 모두 이 버전으로 업데이트 필요, MANUAL_TEST_CHECKLIST 5-1)
+
+---
+
+## 28단계: 로그인해 둔 상태에서도 초대 자동 수락 (2026-10-28)
+- 문제: 초대장은 구글 로그인할 때만 확인해서, 이미 로그인해 둔 사람은 초대를 받아도 로그아웃 후 다시 로그인해야 연결됨
+- `RemoteSyncManager`: 초대 수락 부분을 `findUsableInvitation`·`acceptInvitation`으로 떼어 로그인과 함께 사용, `acceptPendingInvitationIfSignedIn` 추가 (15초 안에는 다시 조회하지 않음, 실패하면 다음에 바로 다시 확인)
+- `AcceptPendingInvitationUseCase`: 로그인 상태일 때만 확인, 수락하면 함께 쓰기로 저장하고 공유 장부 동기화 시작. 내가 바꾼 이름으로 수락
+- 앱을 열거나 앱으로 돌아올 때(`ON_RESUME`) 확인, 수락하면 `{초대한 사람}님의 초대를 받아 공유 장부에 연결됐어요.` 안내
+- 검증: 단위 테스트 `AcceptPendingInvitationUseCaseTest` 3건
+- **미확인**: 실제 두 휴대폰에서 로그인해 둔 상태로 초대 → 자동 연결 (MANUAL_TEST_CHECKLIST 2)

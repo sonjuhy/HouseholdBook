@@ -47,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -187,6 +189,9 @@ private fun HouseholdBookRootScreen(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = TopLevelDestination.from(backStackEntry?.destination)
+
+    // 로그인해 둔 상태에서 받은 함께 쓰기 초대는 앱을 열거나 돌아올 때 자동으로 수락 (다시 로그인하지 않아도 됨)
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.checkPendingInvitation() }
 
     // 알림을 눌러 들어온 경우 해당 탭으로 (새 결제 → 대기내역, 예산 → 홈 등)
     LaunchedEffect(requestedTab, backStackEntry != null) {

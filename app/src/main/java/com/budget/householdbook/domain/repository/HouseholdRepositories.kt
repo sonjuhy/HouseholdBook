@@ -160,6 +160,12 @@ interface SharedSyncRepository {
         manualGoogleEmail: String?,
         manualDisplayName: String?
     ): Result<GoogleLoginResult>
+    /**
+     * 이미 로그인해 둔 상태에서 내 이메일로 온 함께 쓰기 초대가 있으면 수락
+     * @param preferredName 장부에 표시할 내 이름 (비어 있으면 구글 프로필 이름)
+     * @return 수락한 초대 (로그인하지 않았거나 받은 초대가 없으면 null)
+     */
+    suspend fun acceptPendingInvitationIfSignedIn(preferredName: String?): Result<GoogleLoginResult?>
     suspend fun sendGoogleAccountInvitation(
         inviterEmail: String,
         inviterName: String,

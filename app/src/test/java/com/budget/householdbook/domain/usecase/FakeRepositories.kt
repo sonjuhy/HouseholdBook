@@ -286,6 +286,12 @@ class FakeSharedSyncRepository : SharedSyncRepository {
     override fun canSyncNow() = canSync
     override suspend fun signInWithGoogleAccount(uiHost: Any?, manualGoogleEmail: String?, manualDisplayName: String?): Result<GoogleLoginResult> =
         Result.failure(UnsupportedOperationException())
+    var pendingInvitation: GoogleLoginResult? = null
+    var acceptInvitationName: String? = null
+    override suspend fun acceptPendingInvitationIfSignedIn(preferredName: String?): Result<GoogleLoginResult?> {
+        acceptInvitationName = preferredName
+        return Result.success(pendingInvitation.also { pendingInvitation = null })
+    }
     override suspend fun sendGoogleAccountInvitation(
         inviterEmail: String,
         inviterName: String,

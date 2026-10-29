@@ -30,6 +30,9 @@ class FirebaseSharedSyncRepository(
         manualDisplayName = manualDisplayName
     )
 
+    override suspend fun acceptPendingInvitationIfSignedIn(preferredName: String?): Result<GoogleLoginResult?> =
+        syncManager.acceptPendingInvitationIfSignedIn(preferredName)
+
     override suspend fun sendGoogleAccountInvitation(
         inviterEmail: String,
         inviterName: String,

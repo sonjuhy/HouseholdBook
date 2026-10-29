@@ -550,6 +550,15 @@ class MainViewModel(
         }
     }
 
+    /** 로그인해 둔 상태에서 받은 함께 쓰기 초대가 있으면 수락 (앱을 열거나 앱으로 돌아올 때) */
+    fun checkPendingInvitation() {
+        viewModelScope.launch {
+            account.acceptPendingInvitation()?.let { info ->
+                _snackbarMessage.value = "${info.inviterName}님의 초대를 받아 공유 장부에 연결됐어요."
+            }
+        }
+    }
+
     /** 장부에 표시할 내 이름 바꾸기 */
     fun updateDisplayName(name: String) {
         viewModelScope.launch {

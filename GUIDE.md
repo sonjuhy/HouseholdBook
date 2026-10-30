@@ -2,8 +2,8 @@
 
 이 문서는 AI 코딩 에이전트가 **HouseholdBook** 안드로이드 프로젝트의 **도메인 요구사항, 비즈니스 규칙, 데이터 스키마 및 단계별 구현 로드맵**을 일관되게 준수하도록 작성된 기능 마스터 가이드입니다.
 > **참고**:
-> - 빌드 환경(`minSdk = 26`, `Java 17`), 라이브러리 버전(`libs.versions.toml`), DI(`Koin Compose`) 등 기술 스택 명세는 **[TECH_STACK.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/TECH_STACK.md)**를 참조하세요.
-> - 컬러 팔레트, 화면별 와이어프레임, 시각적 레퍼런스 링크 등 UI/UX 디자인 명세는 **[DESIGN_GUIDE.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/DESIGN_GUIDE.md)**를 참조하세요.
+> - 빌드 환경(`minSdk = 26`, `Java 17`), 라이브러리 버전(`libs.versions.toml`), DI(`Koin Compose`) 등 기술 스택 명세는 **[TECH_STACK.md](TECH_STACK.md)**를 참조하세요.
+> - 컬러 팔레트, 화면별 와이어프레임, 시각적 레퍼런스 링크 등 UI/UX 디자인 명세는 **[DESIGN_GUIDE.md](DESIGN_GUIDE.md)**를 참조하세요.
 
 ---
 
@@ -13,7 +13,7 @@
 
 - **Package Name**: `com.budget.householdbook`
 - **Target Platform**: Android (`minSdk = 26`, `targetSdk = 37`, `compileSdk = 37`, `Java 17`)
-- **기술 스택 상세**: [TECH_STACK.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/TECH_STACK.md) 참조
+- **기술 스택 상세**: [TECH_STACK.md](TECH_STACK.md) 참조
 
 ### 1.1. 유저 티어 (`UserTier`: `FREE` vs `PRO`) 및 오프라인 퍼스트 정책
 1. **`FREE` 티어 (무료 유저)**:
@@ -319,7 +319,7 @@ com.budget.householdbook
 1. **언어 및 문서화**:
    - 모든 주석, 아티팩트(`task.md`, `implementation_plan.md`, `walkthrough.md`), 설명 및 UI 텍스트는 **한국어**로 작성합니다.
 2. **스킬 및 기술 명세 준수**:
-   - `.agent/skills/` 디렉터리에 스킬(`SKILL.md`)이 존재하는 경우 코드 작성 전 반드시 읽고 준수하며, 기술 스택은 [TECH_STACK.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/TECH_STACK.md)를 따릅니다.
+   - `.agent/skills/` 디렉터리에 스킬(`SKILL.md`)이 존재하는 경우 코드 작성 전 반드시 읽고 준수하며, 기술 스택은 [TECH_STACK.md](TECH_STACK.md)를 따릅니다.
 3. **금액 및 정산 주기 계산 무결성**:
    - 모든 금액은 `Long` 타입을 사용합니다.
    - 이번 달 지출 합계(`spentAmount`) 및 남은 목표 금액(`remainingAmount`) 계산 시:
@@ -343,7 +343,7 @@ com.budget.householdbook
 
 ## 6. 단계별 구현 로드맵 (Implementation Roadmap)
 
-- **Phase 1: 프로젝트 기반 설정 및 로컬 DB ([TECH_STACK.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/TECH_STACK.md) 적용)**
+- **Phase 1: 프로젝트 기반 설정 및 로컬 DB ([TECH_STACK.md](TECH_STACK.md) 적용)**
   - `minSdk = 26`, `JavaVersion.VERSION_17` 변경 및 Koin, Room(KSP), DataStore, Navigation Compose, Serialization 설정.
   - 핵심 엔티티(`LedgerSpace`, `Category`, `PendingTransaction`, `Transaction`, `MealSavingLog`, `IgnoredKeyword`, `MerchantCategoryRule`) 및 DAO 구현.
   - `BillingCycleCalculator` (월 기준일 1일~28일/말일 주기 계산기) 및 초기 시드 데이터(기본 공통 생활비/개인 용돈 공간, 기본 상위/세부 카테고리) 구성.

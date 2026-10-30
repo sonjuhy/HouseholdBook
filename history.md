@@ -62,8 +62,8 @@
 ### 3.2. 한국어 어절·문맥 단위 줄바꿈 (`LineBreak.WordBreak.Phrase`) 적용
 - **문제점**: 설명문이 길어 다음 줄로 넘어갈 때 한국어 단어(어절) 중간이 뚝 끊겨 가독성이 떨어짐
 - **해결**:
-  - [`Type.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/ui/theme/Type.kt)의 모든 본문·설명·제목 텍스트 스타일에 안드로이드 최신 한국어 구절 줄바꿈 옵션인 `LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.HighQuality, wordBreak = LineBreak.WordBreak.Phrase)` 및 `LineBreak.Heading`을 전역 적용
-  - [`SettingsAndCategoryScreen.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/ui/settings/SettingsAndCategoryScreen.kt), [`PendingQueueScreen.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/ui/queue/PendingQueueScreen.kt) 등의 긴 안내문은 문장·의미 단위로 줄바꿈(`\n`)과 넉넉한 줄 간격(`lineHeight = 18.sp~19.sp`)을 함께 적용
+  - [`Type.kt`](app/src/main/java/com/budget/householdbook/ui/theme/Type.kt)의 모든 본문·설명·제목 텍스트 스타일에 안드로이드 최신 한국어 구절 줄바꿈 옵션인 `LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.HighQuality, wordBreak = LineBreak.WordBreak.Phrase)` 및 `LineBreak.Heading`을 전역 적용
+  - [`SettingsAndCategoryScreen.kt`](app/src/main/java/com/budget/householdbook/ui/settings/SettingsAndCategoryScreen.kt), [`PendingQueueScreen.kt`](app/src/main/java/com/budget/householdbook/ui/queue/PendingQueueScreen.kt) 등의 긴 안내문은 문장·의미 단위로 줄바꿈(`\n`)과 넉넉한 줄 간격(`lineHeight = 18.sp~19.sp`)을 함께 적용
 
 ---
 
@@ -86,7 +86,7 @@
 ## 5단계: 구글 계정 로그인 · 첫 로그인 시 Free/Pro 자동 판별 · 파트너 초대 구현
 
 ### 5.1. 구글 계정 로그인 및 플랜(`기본` / `프리미엄`) 자동 판별
-- **[`RemoteSyncManager.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/data/sync/RemoteSyncManager.kt) (`signInWithGoogleAccount`)**:
+- **[`RemoteSyncManager.kt`](app/src/main/java/com/budget/householdbook/data/sync/RemoteSyncManager.kt) (`signInWithGoogleAccount`)**:
   - 사용자가 설정 탭에서 구글 이메일과 이름을 입력하거나 공식 Google 인증 창으로 로그인하면, 클라우드 데이터를 조회해 다음 순서로 계정을 자동 설정합니다:
     1. **초대장 도착 여부 확인 (`__invitations__`)**:
        - 가족·연인이 내 구글 이메일로 초대를 보낸 기록이 있으면, 첫 로그인이라도 **즉시 `프리미엄 (함께 쓰기)` 플랜으로 자동 전환**되고 초대받은 공유 장부(`inviteCode`)에 자동 연결됩니다.
@@ -96,7 +96,7 @@
        - 초대가 없는 첫 로그인 사용자는 **자동으로 `기본 (혼자 쓰기)` 플랜**으로 설정되며 클라우드에 초기 프로필이 생성됩니다.
 
 ### 5.2. 구글 계정을 통한 파트너 초대 및 공유
-- **[`SettingsAndCategoryScreen.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/ui/settings/SettingsAndCategoryScreen.kt) & [`HouseholdRepository.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/data/repository/HouseholdRepository.kt)**:
+- **[`SettingsAndCategoryScreen.kt`](app/src/main/java/com/budget/householdbook/ui/settings/SettingsAndCategoryScreen.kt) & `HouseholdRepository.kt`**:
   - 설정 탭 상단에 **`내 구글 계정 및 초대 연결`** 전용 카드를 배치하여 현재 로그인된 구글 계정, 적용된 플랜(`기본` / `프리미엄`), 공유 초대번호를 한눈에 표시
   - **`상대방 초대하기`** 모달에서 상대방의 구글 이메일(`예: partner@gmail.com`)과 호칭(`예: 짝꿍`)을 입력해 초대를 보내면, 상대방이 로그인하는 즉시 같은 공유 장부로 자동 묶이도록 구현
   - **`초대장 보내기`** 버튼을 통해 카카오톡·문자 등으로 초대 안내 메시지와 초대번호를 바로 공유할 수 있는 기능 함께 제공
@@ -109,12 +109,12 @@
 - `DESIGN_GUIDE.md` 2장 비교표에 잘못 붙여넣어진 Firebase 콘솔 화면 텍스트(계정 이름·프로젝트 목록 포함) 제거
 - `GUIDE.md` / `TECH_STACK.md` / `DESIGN_GUIDE.md` / `history.md`의 클래스명·패키지 구조·스키마를 실제 코드와 일치시키고, 아직 구현되지 않은 항목(UseCase 계층, WorkManager, 말일 기준일 등)을 별도로 표시
 
-### 6.2. 함께 쓰기(Firebase) 동기화 버그 수정 — [`RemoteSyncManager.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/data/sync/RemoteSyncManager.kt)
+### 6.2. 함께 쓰기(Firebase) 동기화 버그 수정 — [`RemoteSyncManager.kt`](app/src/main/java/com/budget/householdbook/data/sync/RemoteSyncManager.kt)
 - **개인 용돈 유출 차단**: 분할 등록·취소 처리 시 `개인 용돈` 내역까지 `PENDING_UPLOAD`가 되어 공유 장부로 올라가던 문제 수정. 업로드는 `공통 생활비` 공간만 대상으로 하고, 수신 시에도 다른 공간 문서는 무시
 - **고정 초대번호 제거**: 기본 초대번호 `HB-2026`이 모든 사용자에게 같아 서로 다른 가정의 장부가 하나로 섞일 수 있던 문제 수정. `generateInviteCode()`로 `HB-XXXX-XXXX` 형식의 무작위 번호를 발급
 - **삭제 동기화**: 함께 쓰는 장부에서 삭제한 내역이 원격에 남아 다시 나타나던 문제 수정 (`PENDING_DELETE` → 원격 삭제 → 로컬 삭제, 상대방 기기는 `REMOVED` 변경을 받아 삭제)
 
-### 6.3. 대기내역 처리 버그 수정 — [`HouseholdRepository.kt`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/app/src/main/java/com/budget/householdbook/data/repository/HouseholdRepository.kt)
+### 6.3. 대기내역 처리 버그 수정 — `HouseholdRepository.kt`
 - 결제 취소 매칭을 `CancelMatcher`로 분리: 같은 금액이라도 가맹점명이 비슷한 **미취소 지출**만 매칭 (이전에는 아무 같은 금액 거래에 연결될 수 있었음)
 - 원본을 찾지 못한 취소 알림(`CANCEL_UNMATCHED`)은 기본 유형을 `이체/제외`로 두고, `일괄 승인`에서 제외해 지출로 잘못 합산되지 않도록 함
 - 이미 처리된 대기 항목의 중복 저장 방지, 분할 금액 합계 검증 추가
@@ -194,14 +194,14 @@
 - `git init -b main` 후 현재 상태 전체를 첫 커밋 `e39d29e` ("HouseholdBook 초기 커밋 (v0.0.1)", 파일 105개)으로 기록
 - 원격 저장소는 아직 연결하지 않음 (푸시 없음)
 
-### 10.2. 제외 파일 정리 ([`.gitignore`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/.gitignore))
+### 10.2. 제외 파일 정리 ([`.gitignore`](.gitignore))
 - 기존 Android Studio 기본 규칙(`build/`, `.gradle/`, `local.properties`, `.idea` 개인 설정 등) 유지
 - 추가 제외:
   - `.kotlin/` — Kotlin 컴파일러 캐시
   - `google-services.json` — Firebase 프로젝트 ID·API 키 포함. 파일이 없으면 Google Services 플러그인이 적용되지 않아 **로컬 전용 모드로 빌드**되므로, 저장소를 새로 받은 경우 Firebase 콘솔에서 받은 파일을 `app/`에 직접 넣어야 함
   - `*.jks`, `*.keystore` — 앱 서명 키
 
-### 10.3. 줄바꿈 통일 ([`.gitattributes`](file:///c:/WorkSpace/Dev/Android/HouseholdBook/.gitattributes))
+### 10.3. 줄바꿈 통일 ([`.gitattributes`](.gitattributes))
 - 작업 폴더에 LF·CRLF가 섞여 있던 문제를 정리: 저장소 안의 텍스트 파일은 모두 LF
 - `gradlew`는 LF, `gradlew.bat`은 CRLF로 고정해 macOS·Linux·Windows 어디서든 Gradle 래퍼가 실행되도록 함
 - `*.jar`, `*.png`, `*.webp`, `*.jpg`는 바이너리로 지정
@@ -229,7 +229,7 @@
 - 단위: `SeedAndSampleDataUseCasesTest` 2건 (총 38건 통과)
 - 계측(에뮬레이터): `MigrationTest` 2건, `BillingStartDayFieldTest` 3건, `PendingQueueScreenTest` 3건(일괄 승인, 분할 합계, 미매칭 취소 원본 선택) — 총 9건 통과
 - Firestore 규칙: `firestore-tests/rules.test.mjs` 16건, Firebase 에뮬레이터에서 모두 통과 (익명 차단, 비멤버 차단, 방장 보호, 개인 용돈 업로드 거부, 초대장 권한 등). `firebase.json`에 에뮬레이터 설정 추가. 비멤버도 거래를 읽을 수 있게 규칙을 일부러 느슨하게 바꾸면 해당 테스트가 실패하는 것도 확인 (`RULES_FILE` 환경 변수로 다른 규칙 파일 지정 가능)
-- 실제 계정이 필요한 흐름은 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md)로 정리
+- 실제 계정이 필요한 흐름은 [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md)로 정리
 
 ### 11.5. CI
 - `.github/workflows/ci.yml`: Android 빌드·단위 테스트·R8 빌드·스키마 커밋 누락 확인, Firestore 규칙 테스트
@@ -311,7 +311,7 @@
 - **원인 2 (코드)**: Firebase 일반 OAuth 웹 창(`OAuthProvider("google.com")` + `startActivityForSignInWithProvider`)으로 구글 로그인을 시도하고 있었음. Firebase 문서의 Android용 구글 로그인 방식이 아님
 - **수정**: Credential Manager로 Google ID 토큰을 받아 `signInWithCredential`로 로그인하도록 교체 (`androidx.credentials:credentials`·`credentials-play-services-auth` 1.5.0, `googleid` 1.1.1 추가, R8 keep 규칙 추가)
 - 설정이 덜 된 경우(웹 클라이언트 ID 없음 / SHA-1 미등록 / Google 로그인 미사용 / 네트워크) 원인별 안내 문구 표시
-- 디버그 키 SHA-1을 구해 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 0번에 Firebase 설정 순서와 함께 정리
+- 디버그 키 SHA-1을 구해 [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) 0번에 Firebase 설정 순서와 함께 정리
 - 검증: 디버그·출시 빌드, 단위 테스트 통과. 에뮬레이터에서 현재 설정 상태로 로그인을 누르면 설정 안내 문구가 뜨는 것까지 확인
 - **미확인**: 실제 구글 계정 로그인 성공 — Firebase 콘솔에 SHA-1을 등록하고 새 `google-services.json`을 넣은 뒤 확인 필요
 
@@ -322,7 +322,7 @@
 - **보안 규칙**: 방장이 아닌 멤버는 초대·자기 참여·참여 전 초대 취소·자기 나가기만 가능하고, 참여한 다른 멤버를 내보내는 것은 방장만 가능. Firestore 규칙 테스트 6건 추가 (총 22건 통과)
 - **앱**: 설정 > `함께 쓰는 멤버 관리` 다이얼로그 — 상태 배지, 초대 취소(초대장도 CANCELED), 내보내기·나가기(확인 다이얼로그). 내보내지거나 나간 기기는 실시간 연결을 끊고 공통 생활비를 혼자 쓰기로 전환(기록 유지), 나간 사람은 다음 로그인 때 예전 방으로 다시 연결되지 않도록 프로필 초대번호를 새로 발급
 - **검증**: 단위 74건(`SharedRoomMembersTest` 5건), 계측 12건(`SharedMembersDialogTest` 2건), Firestore 규칙 22건 통과
-- **미확인**: 실제 Firebase에서 두 계정으로 내보내기·나가기 — 구글 로그인 설정(16단계)과 **새 규칙 배포** 후 [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 2-1로 확인 필요
+- **미확인**: 실제 Firebase에서 두 계정으로 내보내기·나가기 — 구글 로그인 설정(16단계)과 **새 규칙 배포** 후 [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) 2-1로 확인 필요
 
 ---
 
@@ -356,7 +356,7 @@
 - **줄바꿈**: 휴대폰 언어가 영어인 기기에서 한국어 문장이 단어 중간에서 끊기던 문제 → 기본 글자 스타일의 글자 언어를 한국어로 고정 (`Type.kt`)
 - 검증: 단위 78건(`DeleteAccountUseCaseTest` 3건, 방장 넘기기 규칙 1건 추가), 계측 20건(`DeleteAccountDialogTest` 3건, 방장 넘기기 2건 추가), Firestore 규칙 28건(6건 추가) 통과. 다이얼로그 화면은 에뮬레이터에서 캡처로 확인
 - 새 Firestore 규칙을 `<firebase-project-id>`에 배포 (dry-run으로 서버 컴파일 확인 후 `firebase deploy --only firestore:rules`, 2026-10-21)
-- **미확인**: 실제 구글 계정 2개로 방장 넘기기·탈퇴 — [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) 2-2로 확인 필요
+- **미확인**: 실제 구글 계정 2개로 방장 넘기기·탈퇴 — [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) 2-2로 확인 필요
 - 남은 과제: Google Play 정책상 앱 밖에서도 계정 삭제를 요청할 수 있는 웹 페이지(또는 양식) 주소가 필요
 
 ---

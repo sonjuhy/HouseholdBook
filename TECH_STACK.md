@@ -1,8 +1,8 @@
 # HouseholdBook 기술 스택 및 아키텍처 명세 (`TECH_STACK.md`)
 
 이 문서는 **HouseholdBook** 프로젝트의 빌드 환경, 라이브러리 버전 표준, 의존성 주입(DI), 오프라인 퍼스트(Offline-First) 데이터베이스, 백그라운드 수집/동기화 등 **기술적 구현 명세**를 별도로 관리하는 문서입니다.
-- 도메인 요구사항 및 기능 정책: [GUIDE.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/GUIDE.md)
-- UI/UX 디자인 및 와이어프레임 명세: [DESIGN_GUIDE.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/DESIGN_GUIDE.md)
+- 도메인 요구사항 및 기능 정책: [GUIDE.md](GUIDE.md)
+- UI/UX 디자인 및 와이어프레임 명세: [DESIGN_GUIDE.md](DESIGN_GUIDE.md)
 
 ---
 
@@ -281,7 +281,7 @@ flowchart LR
 | DB 마이그레이션 | `app/src/androidTest/.../core/database/MigrationTest.kt` | 기기/에뮬레이터: `./gradlew connectedDebugAndroidTest` |
 | Compose UI (대기내역·기준일 입력) | `app/src/androidTest/.../ui/`, `.../core/designsystem/` | 위와 같음 |
 | Firestore 보안 규칙 | `firestore-tests/rules.test.mjs` | `cd firestore-tests && npm install && npm test` (Java 11+, Firebase 에뮬레이터 자동 실행) |
-| 실제 계정이 필요한 흐름 | [MANUAL_TEST_CHECKLIST.md](file:///c:/WorkSpace/Dev/Android/HouseholdBook/MANUAL_TEST_CHECKLIST.md) | 사람이 직접 확인 |
+| 실제 계정이 필요한 흐름 | [MANUAL_TEST_CHECKLIST.md](MANUAL_TEST_CHECKLIST.md) | 사람이 직접 확인 |
 
 > `connectedDebugAndroidTest`는 테스트 후 앱을 삭제하므로 기기에 남겨둘 데이터가 있으면 APK를 직접 설치하고 `adb shell am instrument -w com.budget.householdbook.test/androidx.test.runner.AndroidJUnitRunner`로 실행합니다.
 

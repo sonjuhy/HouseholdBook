@@ -91,6 +91,9 @@ class FakeSettingsRepository(initial: AppUserSettings = AppUserSettings()) : Set
     override suspend fun setOnboardingSeen(seen: Boolean) {
         state.value = state.value.copy(hasSeenOnboarding = seen)
     }
+    override suspend fun setNotificationPermissionAsked() {
+        state.value = state.value.copy(notificationPermissionAsked = true)
+    }
     override suspend fun markSeedCompleted() { state.value = state.value.copy(isSeedCompleted = true) }
 }
 
@@ -368,11 +371,19 @@ class FakeAppNotifier : AppNotifier {
     val stopped = mutableListOf<CollectionStopReason>()
     val canceledStops = mutableListOf<CollectionStopReason>()
     var activePendingIds: Set<Long>? = null
+    /** false면 알림이 꺼진 휴대폰처럼 보내지 못함 */
+    var canDeliver = true
     override fun notifyPendingPayment(alert: PendingPaymentAlert) { payments += alert }
     override fun notifyPendingBatch(count: Int) { batches += count }
     override fun cancelPendingExcept(activePendingIds: Set<Long>) { this.activePendingIds = activePendingIds }
-    override fun notifyBudget(alert: BudgetAlert) { budgets += alert }
-    override fun notifyCollectionStopped(reason: CollectionStopReason) { stopped += reason }
+    override fun notifyBudget(alert: BudgetAlert): Boolean {
+        if (canDeliver) budgets += alert
+        return canDeliver
+    }
+    override fun notifyCollectionStopped(reason: CollectionStopReason): Boolean {
+        if (canDeliver) stopped += reason
+        return canDeliver
+    }
     override fun cancelCollectionStopped(reason: CollectionStopReason) { canceledStops += reason }
 }
 

@@ -164,6 +164,21 @@ class AlertUseCasesTest {
     }
 
     @Test
+    fun `알림이 꺼져 예산 알림을 못 보냈으면 켠 뒤 다시 보낸다`() = runTest {
+        val check = CheckBudgetAlertUseCase(spaces, transactions, alertState, notifier)
+        transactions.state.value = listOf(expense(1, 85_000))
+
+        notifier.canDeliver = false
+        check(shared, today)
+        assertTrue(alertState.budget.isEmpty())
+
+        notifier.canDeliver = true
+        check(shared, today)
+        check(shared, today)
+        assertEquals(listOf(BudgetAlertLevel.WARNING), notifier.budgets.map { it.level })
+    }
+
+    @Test
     fun `취소된 거래와 수입은 예산 사용액에 넣지 않고, 목표 예산이 없으면 알리지 않는다`() = runTest {
         val check = CheckBudgetAlertUseCase(spaces, transactions, alertState, notifier)
         transactions.state.value = listOf(
@@ -202,6 +217,35 @@ class AlertUseCasesTest {
         assertTrue(CollectionStopReason.NOTIFICATION_ACCESS_OFF in notifier.canceledStops)
         check(notificationAccessEnabled = false, notify = true)
         assertEquals(2, notifier.stopped.size)
+    }
+
+    @Test
+    fun `알림이 꺼져 자동 기록 멈춤 알림을 못 보냈으면 켠 뒤 다시 보낸다`() = runTest {
+        val check = CheckCollectionStatusUseCase(alertState, notifier)
+        check(notificationAccessEnabled = true, notify = false)
+
+        notifier.canDeliver = false
+        check(notificationAccessEnabled = false, notify = true)
+        assertFalse(alertState.collection.notificationAccessAlertSent)
+
+        notifier.canDeliver = true
+        check(notificationAccessEnabled = false, notify = true)
+        check(notificationAccessEnabled = false, notify = true)
+        assertEquals(listOf(CollectionStopReason.NOTIFICATION_ACCESS_OFF), notifier.stopped)
+    }
+
+    @Test
+    fun `알림이 꺼져 은행 실패 알림을 못 보냈으면 켠 뒤 다음 실패 때 보낸다`() = runTest {
+        val record = RecordBankInquiryResultUseCase(alertState, notifier)
+
+        notifier.canDeliver = false
+        repeat(3) { record(success = false) }
+        assertEquals(3, alertState.collection.bankInquiryFailures)
+        assertFalse(alertState.collection.bankInquiryAlertSent)
+
+        notifier.canDeliver = true
+        repeat(2) { record(success = false) }
+        assertEquals(listOf(CollectionStopReason.BANK_INQUIRY_FAILING), notifier.stopped)
     }
 
     @Test

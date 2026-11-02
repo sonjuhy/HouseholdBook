@@ -57,3 +57,8 @@ class UpdateDefaultIngestSpaceUseCase(private val settingsRepository: SettingsRe
 class UpdateOnboardingSeenUseCase(private val settingsRepository: SettingsRepository) {
     suspend operator fun invoke(seen: Boolean) = settingsRepository.setOnboardingSeen(seen)
 }
+
+/** 앱을 열 때 알림 권한을 물어봤다고 기록 */
+class MarkNotificationPermissionAskedUseCase(private val settingsRepository: SettingsRepository) {
+    suspend operator fun invoke() = settingsRepository.setNotificationPermissionAsked()
+}

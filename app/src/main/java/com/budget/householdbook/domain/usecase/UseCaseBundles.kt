@@ -76,5 +76,6 @@ data class SettingsUseCases(
     val updateExcludedSources: UpdateExcludedSourcesUseCase,
     val updateAutoFilterDuplicates: UpdateAutoFilterDuplicatesUseCase,
     val updateDefaultIngestSpace: UpdateDefaultIngestSpaceUseCase,
-    val updateOnboardingSeen: UpdateOnboardingSeenUseCase
+    val updateOnboardingSeen: UpdateOnboardingSeenUseCase,
+    val markNotificationPermissionAsked: MarkNotificationPermissionAskedUseCase
 )

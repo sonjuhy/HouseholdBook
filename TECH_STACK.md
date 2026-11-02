@@ -120,6 +120,9 @@
    - 앱 프로세스가 살아 있는 동안 `HouseholdBookApp`에서 시작하는 감시: `BudgetAlertMonitor`(공간별 이번 주기 거래 Flow → `CheckBudgetAlertUseCase`, 한 시간마다 주기 재계산), `PendingAlertCleaner`(대기 목록에서 사라진 항목의 알림 삭제).
    - `StatusCheckWorker`(12시간, WorkManager)가 알림 읽기 권한을 확인 → `CheckCollectionStatusUseCase`. `MainActivity.onResume`에서도 같은 확인(알림 없이 기록만). `QuickInquiryWorker`는 결과를 `RecordBankInquiryResultUseCase`에 기록.
    - 알림을 누르면 `MainActivity`(singleTop)가 `open_tab` 값으로 대기내역·장부·홈·설정 탭을 엶.
+   - `AndroidAppNotifier.canNotify(context, 채널)`: 권한 + 앱 알림 + 채널이 모두 켜져 있어야 보냄. `notifyBudget`·`notifyCollectionStopped`는 실제로 보냈는지 돌려주고, 판단 로직은 보낸 경우에만 상태를 기록함.
+   - 권한 요청은 `HouseholdBookRootScreen`에서 한 번(DataStore `notification_permission_asked`). 이후 `rememberEnableNotifications`는 Android가 창을 다시 띄워 주면 요청, 아니면 알림 설정 화면을 엶.
+   - 배터리는 `PowerManager.isIgnoringBatteryOptimizations`로 확인하고 앱 정보 화면으로 안내. `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 권한은 Play 정책상 쓸 수 있는 앱이 제한되어 사용하지 않음.
 
 ## 3. 버전 카탈로그 구성 표준 (`gradle/libs.versions.toml`)
 

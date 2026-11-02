@@ -34,6 +34,8 @@ data class AppUserSettings(
     val isSeedCompleted: Boolean = false,
     /** 첫 실행 튜토리얼을 끝까지 봤거나 건너뛰었는지 */
     val hasSeenOnboarding: Boolean = false,
+    /** 앱을 열 때 알림 권한을 물어봤는지 (한 번만 물어봄) */
+    val notificationPermissionAsked: Boolean = false,
     val kbAutoInquiryEnabled: Boolean = false,
     val kbAutoInquiryIntervalHours: Int = DEFAULT_KB_AUTO_INQUIRY_HOURS,
     /** 알림·문자를 읽어올 금융기관 ID ([FinancialInstitutions]) */
@@ -72,6 +74,7 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
         val SNACK_PRICE = longPreferencesKey("meal_price_snack")
         val IS_SEED_COMPLETED = booleanPreferencesKey("is_seed_completed")
         val HAS_SEEN_ONBOARDING = booleanPreferencesKey("has_seen_onboarding")
+        val NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_asked")
         val KB_AUTO_INQUIRY_ENABLED = booleanPreferencesKey("kb_auto_inquiry_enabled")
         val KB_AUTO_INQUIRY_HOURS = intPreferencesKey("kb_auto_inquiry_hours")
         val ENABLED_INSTITUTIONS = stringSetPreferencesKey("enabled_institution_ids")
@@ -102,6 +105,7 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
             ),
             isSeedCompleted = prefs[Keys.IS_SEED_COMPLETED] ?: false,
             hasSeenOnboarding = prefs[Keys.HAS_SEEN_ONBOARDING] ?: false,
+            notificationPermissionAsked = prefs[Keys.NOTIFICATION_PERMISSION_ASKED] ?: false,
             kbAutoInquiryEnabled = prefs[Keys.KB_AUTO_INQUIRY_ENABLED] ?: false,
             kbAutoInquiryIntervalHours = prefs[Keys.KB_AUTO_INQUIRY_HOURS] ?: DEFAULT_KB_AUTO_INQUIRY_HOURS,
             enabledInstitutionIds = prefs[Keys.ENABLED_INSTITUTIONS] ?: FinancialInstitutions.DEFAULT_ENABLED_IDS,
@@ -204,6 +208,10 @@ class UserPreferencesRepository(private val context: Context) : SettingsReposito
 
     override suspend fun setOnboardingSeen(seen: Boolean) {
         context.dataStore.edit { it[Keys.HAS_SEEN_ONBOARDING] = seen }
+    }
+
+    override suspend fun setNotificationPermissionAsked() {
+        context.dataStore.edit { it[Keys.NOTIFICATION_PERMISSION_ASKED] = true }
     }
 
     override suspend fun markSeedCompleted() {

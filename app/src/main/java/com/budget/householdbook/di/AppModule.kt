@@ -54,6 +54,7 @@ import com.budget.householdbook.domain.usecase.DismissPendingItemUseCase
 import com.budget.householdbook.domain.usecase.UpdateAutoFilterDuplicatesUseCase
 import com.budget.householdbook.domain.usecase.UpdateDefaultIngestSpaceUseCase
 import com.budget.householdbook.domain.usecase.UpdateOnboardingSeenUseCase
+import com.budget.householdbook.domain.usecase.MarkNotificationPermissionAskedUseCase
 import com.budget.householdbook.domain.usecase.UpdateExcludedSourcesUseCase
 import com.budget.householdbook.domain.usecase.UpdatePendingClassificationUseCase
 import com.budget.householdbook.domain.usecase.EnqueueParsedDraftUseCase
@@ -248,6 +249,7 @@ val useCaseModule = module {
     factoryOf(::UpdateAutoFilterDuplicatesUseCase)
     factoryOf(::UpdateDefaultIngestSpaceUseCase)
     factoryOf(::UpdateOnboardingSeenUseCase)
+    factoryOf(::MarkNotificationPermissionAskedUseCase)
 
     // ViewModel용 번들
     factoryOf(::IngestionUseCases)

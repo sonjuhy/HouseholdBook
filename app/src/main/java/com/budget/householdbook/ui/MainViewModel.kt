@@ -740,6 +740,10 @@ class MainViewModel(
         viewModelScope.launch { settings.updateOnboardingSeen(false) }
     }
 
+    fun markNotificationPermissionAsked() {
+        viewModelScope.launch { settings.markNotificationPermissionAsked() }
+    }
+
     fun insertSampleData() {
         viewModelScope.launch {
             _snackbarMessage.value = when (settings.insertSampleData()) {

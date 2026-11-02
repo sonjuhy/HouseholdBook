@@ -107,7 +107,7 @@ class CheckBudgetAlertUseCase(
         val alreadySent = if (last?.periodStart == periodStart) last.level else BudgetAlertLevel.NONE
         if (level.ordinal <= alreadySent.ordinal) return
 
-        notifier.notifyBudget(
+        val sent = notifier.notifyBudget(
             BudgetAlert(
                 spaceId = space.id,
                 spaceName = space.name,
@@ -117,7 +117,8 @@ class CheckBudgetAlertUseCase(
                 remainingDays = period.remainingDays
             )
         )
-        alertStateRepository.setLastBudgetAlert(spaceId, BudgetAlertRecord(periodStart, level))
+        // 알림이 꺼져 있어 못 보냈으면 기록하지 않음 (켠 뒤 다음 확인 때 보냄)
+        if (sent) alertStateRepository.setLastBudgetAlert(spaceId, BudgetAlertRecord(periodStart, level))
     }
 }
 
@@ -142,8 +143,8 @@ class CheckCollectionStatusUseCase(
             return
         }
         if (notify && state.notificationAccessEverEnabled && !state.notificationAccessAlertSent) {
-            notifier.notifyCollectionStopped(CollectionStopReason.NOTIFICATION_ACCESS_OFF)
-            alertStateRepository.setCollectionState(state.copy(notificationAccessAlertSent = true))
+            val sent = notifier.notifyCollectionStopped(CollectionStopReason.NOTIFICATION_ACCESS_OFF)
+            if (sent) alertStateRepository.setCollectionState(state.copy(notificationAccessAlertSent = true))
         }
     }
 }
@@ -165,10 +166,10 @@ class RecordBankInquiryResultUseCase(
             return
         }
         val failures = state.bankInquiryFailures + 1
-        val shouldNotify = failures >= FAILURE_THRESHOLD && !state.bankInquiryAlertSent
-        if (shouldNotify) notifier.notifyCollectionStopped(CollectionStopReason.BANK_INQUIRY_FAILING)
+        val sent = failures >= FAILURE_THRESHOLD && !state.bankInquiryAlertSent &&
+            notifier.notifyCollectionStopped(CollectionStopReason.BANK_INQUIRY_FAILING)
         alertStateRepository.setCollectionState(
-            state.copy(bankInquiryFailures = failures, bankInquiryAlertSent = state.bankInquiryAlertSent || shouldNotify)
+            state.copy(bankInquiryFailures = failures, bankInquiryAlertSent = state.bankInquiryAlertSent || sent)
         )
     }
 

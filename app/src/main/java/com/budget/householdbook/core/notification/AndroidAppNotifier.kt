@@ -28,7 +28,7 @@ import com.budget.householdbook.domain.repository.AppNotifier
  * 휴대폰 알림 보내기
  * - 채널을 종류별로 나눠 사용자가 Android 설정에서 따로 끌 수 있게 함 (결제 대기 / 예산 / 자동 수집 상태)
  * - 금액·가게 이름은 금융 정보라 잠금화면에서는 내용 없이 보여줌 (VISIBILITY_PRIVATE + 공개용 문구)
- * - 알림 권한이 없으면 조용히 아무것도 하지 않음
+ * - 알림 권한이나 해당 종류가 꺼져 있으면 보내지 않음 (예산·자동 기록 알림은 못 보냈다고 알려 보낸 것으로 기록하지 않게 함)
  */
 class AndroidAppNotifier(private val context: Context) : AppNotifier {
 
@@ -36,12 +36,6 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
 
     init {
         createChannels()
-    }
-
-    fun canNotify(): Boolean {
-        if (!manager.areNotificationsEnabled()) return false
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
     // ---------------- 새 결제 대기 ----------------
@@ -64,7 +58,7 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
             builder.addAction(0, "공용에 저장", quickSaveIntent(alert.pendingId, AppDatabase.SPACE_ID_SHARED))
             builder.addAction(0, "개인에 저장", quickSaveIntent(alert.pendingId, AppDatabase.SPACE_ID_PERSONAL))
         }
-        post(TAG_PENDING, alert.pendingId.toInt(), builder)
+        post(CHANNEL_PENDING, TAG_PENDING, alert.pendingId.toInt(), builder)
         refreshPendingSummary()
     }
 
@@ -75,7 +69,7 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
             .setContentText("은행 내역에서 불러왔어요. 대기내역에서 확인해 주세요.")
             .setContentIntent(openAppIntent(MainActivity.TAB_QUEUE, requestCode = REQUEST_BATCH))
             .setPublicVersion(publicVersion(CHANNEL_PENDING, "새 결제 ${count}건", "대기내역에서 확인해 주세요"))
-        post(TAG_PENDING_BATCH, 0, builder)
+        post(CHANNEL_PENDING, TAG_PENDING_BATCH, 0, builder)
     }
 
     override fun cancelPendingExcept(activePendingIds: Set<Long>) {
@@ -101,7 +95,7 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
             .setGroupSummary(true)
             .setOnlyAlertOnce(true)
             .setPublicVersion(publicVersion(CHANNEL_PENDING, "확인할 결제 ${count}건", "대기내역에서 확인해 주세요"))
-        post(TAG_PENDING_SUMMARY, 0, builder)
+        post(CHANNEL_PENDING, TAG_PENDING_SUMMARY, 0, builder)
     }
 
     /** 알림 버튼으로 저장한 뒤: 해당 알림을 '저장했어요'로 바꿨다가 잠시 후 사라지게 */
@@ -114,7 +108,7 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setTimeoutAfter(QUICK_SAVED_TIMEOUT_MILLIS)
-        post(TAG_PENDING, pendingId.toInt(), builder)
+        post(CHANNEL_PENDING, TAG_PENDING, pendingId.toInt(), builder)
     }
 
     fun cancelPending(pendingId: Long) {
@@ -124,7 +118,7 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
 
     // ---------------- 예산 ----------------
 
-    override fun notifyBudget(alert: BudgetAlert) {
+    override fun notifyBudget(alert: BudgetAlert): Boolean {
         val won = CurrencyAndDateFormatter::formatWon
         val (title, text) = when (alert.level) {
             BudgetAlertLevel.EXCEEDED -> "${alert.spaceName} 예산을 넘었어요" to
@@ -140,12 +134,12 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(openAppIntent(MainActivity.TAB_HOME, requestCode = REQUEST_BUDGET + alert.spaceId.hashCode()))
             .setPublicVersion(publicVersion(CHANNEL_BUDGET, "예산 알림", "앱에서 확인해 주세요"))
-        post(TAG_BUDGET, alert.spaceId.hashCode(), builder)
+        return post(CHANNEL_BUDGET, TAG_BUDGET, alert.spaceId.hashCode(), builder)
     }
 
     // ---------------- 자동 수집 멈춤 ----------------
 
-    override fun notifyCollectionStopped(reason: CollectionStopReason) {
+    override fun notifyCollectionStopped(reason: CollectionStopReason): Boolean {
         val builder = base(CHANNEL_STATUS)
         when (reason) {
             CollectionStopReason.NOTIFICATION_ACCESS_OFF -> {
@@ -170,7 +164,7 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
                     .setContentIntent(openAppIntent(MainActivity.TAB_SETTINGS, requestCode = REQUEST_STATUS + 1))
             }
         }
-        post(TAG_STATUS, reason.ordinal, builder)
+        return post(CHANNEL_STATUS, TAG_STATUS, reason.ordinal, builder)
     }
 
     override fun cancelCollectionStopped(reason: CollectionStopReason) {
@@ -194,9 +188,9 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
             .build()
 
     @SuppressLint("MissingPermission") // canNotify()로 확인
-    private fun post(tag: String, id: Int, builder: NotificationCompat.Builder) {
-        if (!canNotify()) return
-        runCatching { manager.notify(tag, id, builder.build()) }
+    private fun post(channelId: String, tag: String, id: Int, builder: NotificationCompat.Builder): Boolean {
+        if (!canNotify(context, channelId)) return false
+        return runCatching { manager.notify(tag, id, builder.build()) }.isSuccess
     }
 
     private fun activeNotifications() = runCatching {
@@ -229,15 +223,15 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
         val system = context.getSystemService(NotificationManager::class.java) ?: return
         system.createNotificationChannels(
             listOf(
-                NotificationChannel(CHANNEL_PENDING, "새 결제", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel(CHANNEL_PENDING, CHANNEL_NAMES.getValue(CHANNEL_PENDING), NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "결제 알림·문자가 대기내역에 들어오면 알려주고, 알림에서 바로 저장할 수 있어요"
                     lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
                 },
-                NotificationChannel(CHANNEL_BUDGET, "예산", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel(CHANNEL_BUDGET, CHANNEL_NAMES.getValue(CHANNEL_BUDGET), NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "정산 주기마다 예산의 80%, 100%를 쓰면 한 번씩 알려줘요"
                     lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
                 },
-                NotificationChannel(CHANNEL_STATUS, "자동 기록 상태", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                NotificationChannel(CHANNEL_STATUS, CHANNEL_NAMES.getValue(CHANNEL_STATUS), NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = "결제 알림 읽기 권한이 꺼지거나 은행 내역 불러오기가 계속 실패하면 알려줘요"
                 }
             )
@@ -262,5 +256,31 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
         private const val REQUEST_BUDGET = 100_000
 
         private const val QUICK_SAVED_TIMEOUT_MILLIS = 4_000L
+
+        /** 알림 종류: 채널 ID → Android 설정에 보이는 이름 */
+        private val CHANNEL_NAMES = mapOf(
+            CHANNEL_PENDING to "새 결제",
+            CHANNEL_BUDGET to "예산",
+            CHANNEL_STATUS to "자동 기록 상태"
+        )
+
+        /** 앱 알림을 보낼 수 있는 상태인지 (Android 13+ 알림 권한 + 앱 알림 켜짐) */
+        fun isAllowed(context: Context): Boolean {
+            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
+            return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        }
+
+        private fun isChannelOff(context: Context, channelId: String): Boolean =
+            NotificationManagerCompat.from(context).getNotificationChannel(channelId)?.importance ==
+                NotificationManagerCompat.IMPORTANCE_NONE
+
+        /** 이 종류의 알림이 실제로 표시될 수 있는지 */
+        fun canNotify(context: Context, channelId: String): Boolean =
+            isAllowed(context) && !isChannelOff(context, channelId)
+
+        /** Android 설정에서 꺼 둔 알림 종류의 이름 */
+        fun disabledKinds(context: Context): List<String> =
+            CHANNEL_NAMES.filterKeys { isChannelOff(context, it) }.values.toList()
     }
 }

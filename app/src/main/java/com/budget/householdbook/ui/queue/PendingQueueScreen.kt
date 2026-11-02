@@ -54,6 +54,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import com.budget.householdbook.core.notification.AndroidAppNotifier
+import com.budget.householdbook.ui.settings.rememberEnableNotifications
 import com.budget.householdbook.core.common.CurrencyAndDateFormatter
 import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.core.designsystem.IosCategorySelectorField
@@ -112,8 +116,17 @@ fun PendingQueueScreen(
     onRunKbQuickInquiryBeta: () -> Unit
 ) {
     val context = LocalContext.current
-    val hasNotiPermission = remember {
-        FinancialNotificationListenerService.isNotificationAccessGranted(context)
+    var hasNotiPermission by remember {
+        mutableStateOf(FinancialNotificationListenerService.isNotificationAccessGranted(context))
+    }
+    var canAlertNewPayment by remember {
+        mutableStateOf(AndroidAppNotifier.canNotify(context, AndroidAppNotifier.CHANNEL_PENDING))
+    }
+    val enableNotifications = rememberEnableNotifications()
+    // Android 설정에서 바꾸고 돌아온 경우 반영
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        hasNotiPermission = FinancialNotificationListenerService.isNotificationAccessGranted(context)
+        canAlertNewPayment = AndroidAppNotifier.canNotify(context, AndroidAppNotifier.CHANNEL_PENDING)
     }
 
     var editingItem by remember { mutableStateOf<PendingTransactionEntity?>(null) }
@@ -205,6 +218,16 @@ fun PendingQueueScreen(
                                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                                 }
                             },
+                            modifier = Modifier.fillMaxWidth(),
+                            tintColor = MealSaverAmber
+                        )
+                    }
+
+                    if (!canAlertNewPayment) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        IosTintedButton(
+                            text = "🔔 새 결제 알림 켜기",
+                            onClick = enableNotifications,
                             modifier = Modifier.fillMaxWidth(),
                             tintColor = MealSaverAmber
                         )

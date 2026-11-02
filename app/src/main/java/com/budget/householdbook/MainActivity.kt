@@ -1,9 +1,12 @@
 package com.budget.householdbook
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -41,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +67,7 @@ import com.budget.householdbook.ui.navigation.IosFloatingCapsuleTabBar
 import com.budget.householdbook.ui.navigation.TopLevelDestination
 import com.budget.householdbook.ui.navigation.navigateToTopLevel
 import com.budget.householdbook.ui.onboarding.OnboardingScreen
+import com.budget.householdbook.ui.settings.needsNotificationPermission
 import com.budget.householdbook.ui.theme.HouseholdBookTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.android.ext.android.inject
@@ -192,6 +197,18 @@ private fun HouseholdBookRootScreen(
 
     // 로그인해 둔 상태에서 받은 함께 쓰기 초대는 앱을 열거나 돌아올 때 자동으로 수락 (다시 로그인하지 않아도 됨)
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.checkPendingInvitation() }
+
+    // 알림 권한은 튜토리얼 뒤 홈에 처음 들어올 때 한 번만 물어봄 (이미 쓰던 사람도 업데이트 후 한 번).
+    // 거절하면 대기내역·설정의 알림 켜기로 다시 켤 수 있음
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(uiState.settings.notificationPermissionAsked) {
+        if (uiState.settings.notificationPermissionAsked) return@LaunchedEffect
+        viewModel.markNotificationPermissionAsked()
+        if (needsNotificationPermission(context)) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     // 알림을 눌러 들어온 경우 해당 탭으로 (새 결제 → 대기내역, 예산 → 홈 등)
     LaunchedEffect(requestedTab, backStackEntry != null) {

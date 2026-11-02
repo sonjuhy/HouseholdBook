@@ -143,6 +143,8 @@ interface SettingsRepository {
     suspend fun markSeedCompleted()
     /** 첫 실행 튜토리얼 확인 여부 (false로 되돌리면 다시 보여줌) */
     suspend fun setOnboardingSeen(seen: Boolean)
+    /** 앱을 열 때 알림 권한을 물어봤다고 기록 (거절한 사람에게 매번 묻지 않도록) */
+    suspend fun setNotificationPermissionAsked()
 }
 
 /** [Pro] 구글 로그인·초대·Firestore 공유 장부 동기화 */
@@ -225,7 +227,7 @@ interface BackgroundTaskScheduler {
 
 /**
  * 휴대폰 알림 보내기 (Android 구현: core/notification/AndroidAppNotifier)
- * 알림 권한이 없으면 조용히 아무것도 하지 않음
+ * 알림 권한이나 해당 알림 종류가 꺼져 있으면 보내지 않음
  */
 interface AppNotifier {
     fun notifyPendingPayment(alert: PendingPaymentAlert)
@@ -233,8 +235,10 @@ interface AppNotifier {
     fun notifyPendingBatch(count: Int)
     /** 대기내역에서 처리된(사라진) 항목의 알림 지우기 */
     fun cancelPendingExcept(activePendingIds: Set<Long>)
-    fun notifyBudget(alert: BudgetAlert)
-    fun notifyCollectionStopped(reason: CollectionStopReason)
+    /** @return 실제로 보냈으면 true (못 보낸 알림은 보낸 것으로 기록하지 않기 위함) */
+    fun notifyBudget(alert: BudgetAlert): Boolean
+    /** @return 실제로 보냈으면 true */
+    fun notifyCollectionStopped(reason: CollectionStopReason): Boolean
     fun cancelCollectionStopped(reason: CollectionStopReason)
 }
 

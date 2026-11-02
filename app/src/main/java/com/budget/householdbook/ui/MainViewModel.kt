@@ -438,7 +438,7 @@ class MainViewModel(
         }
     }
 
-    /** 등록된 거래의 이름·금액·날짜·분류·메모 수정 */
+    /** 등록된 거래의 이름·금액·날짜·유형·분류·메모 수정 */
     fun updateTransaction(
         transactionId: Long,
         merchantOrTitle: String,
@@ -446,11 +446,12 @@ class MainViewModel(
         transactionDate: Long,
         categoryId: Long,
         subCategoryId: Long?,
-        memo: String
+        memo: String,
+        type: TransactionType
     ) {
         viewModelScope.launch {
             runCatching {
-                transactions.update(transactionId, merchantOrTitle, amount, transactionDate, categoryId, subCategoryId, memo)
+                transactions.update(transactionId, merchantOrTitle, amount, transactionDate, categoryId, subCategoryId, memo, type)
             }.onSuccess { saved ->
                 val period = uiState.value.billingPeriod
                 _snackbarMessage.value = when {

@@ -195,6 +195,34 @@ class PendingQueueUseCasesTest {
     }
 
     @Test
+    fun `이체 쌍의 한쪽을 지출로 바꾸면 상대 항목은 따로 저장하도록 남긴다`() = runTest {
+        val outId = enqueue(draft(100_000, "출금", app = "토스", occurredAt = now))!!
+        val inId = enqueue(draft(100_000, "입금", type = TransactionType.INCOME, app = "KB스타뱅킹", occurredAt = now + 30_000))!!
+        pending.updateClassification(inId, shared, TransactionType.INCOME, 1L, null)
+
+        // 지출로 저장해도 수입으로 바꾼 상대 항목은 사라지지 않음
+        approve(outId, shared, TransactionType.EXPENSE, 100_000, "출금", "", 1L, null)
+        assertEquals(QueueStatus.PENDING, pending.getById(inId)!!.status)
+
+        approve(inId, shared, TransactionType.INCOME, 100_000, "입금", "", 1L, null)
+        assertEquals(
+            listOf(TransactionType.EXPENSE, TransactionType.INCOME),
+            transactions.state.value.map { it.type }.sortedBy { it.ordinal }
+        )
+    }
+
+    @Test
+    fun `이체 쌍을 이체로 저장할 때 상대가 수입으로 바뀌어 있으면 함께 처리하지 않는다`() = runTest {
+        val outId = enqueue(draft(100_000, "출금", app = "토스", occurredAt = now))!!
+        val inId = enqueue(draft(100_000, "입금", type = TransactionType.INCOME, app = "KB스타뱅킹", occurredAt = now + 30_000))!!
+        pending.updateClassification(inId, shared, TransactionType.INCOME, 1L, null)
+
+        approve(outId, shared, TransactionType.TRANSFER, 100_000, "출금", "", 1L, null)
+
+        assertEquals(QueueStatus.PENDING, pending.getById(inId)!!.status)
+    }
+
+    @Test
     fun `단건 승인은 가맹점 규칙을 학습하고 이미 처리된 항목은 다시 저장하지 않는다`() = runTest {
         val id = enqueue(draft(23_500, "배달의민족"))!!
 

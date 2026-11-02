@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,7 +60,6 @@ import com.budget.householdbook.core.designsystem.IosCategorySelectorField
 import com.budget.householdbook.core.designsystem.IosFilledButton
 import com.budget.householdbook.core.designsystem.IosHairlineDivider
 import com.budget.householdbook.core.designsystem.IosInsetGroupedCard
-import com.budget.householdbook.core.designsystem.IosPillChip
 import com.budget.householdbook.core.designsystem.IosSectionHeader
 import com.budget.householdbook.core.designsystem.IosSegmentedControl
 import com.budget.householdbook.core.designsystem.IosTintedButton
@@ -379,7 +379,12 @@ fun PendingQueueScreen(
                     IosSegmentedControl(
                         items = TransactionType.entries,
                         selectedItem = selectedType,
-                        onItemSelected = { selectedType = it },
+                        onItemSelected = { next ->
+                            selectedType = next
+                            val (catId, subId) = CategoryDefaults.pickForType(spaceCats, next, selectedCatId, selectedSubId)
+                            selectedCatId = catId ?: selectedCatId
+                            selectedSubId = subId
+                        },
                         labelProvider = { it.displayName }
                     )
                     OutlinedTextField(
@@ -758,23 +763,6 @@ private fun PendingQueueItemCard(
                         maxLines = 1,
                         softWrap = false
                     )
-                    // 내 계좌 이체·카드대금처럼 지출/수입 합계에서 빼는 토글 (어디에 저장할지와는 별개)
-                    if (item.queueKind != QueueKind.CANCEL_MATCHED) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        IosPillChip(
-                            label = "집계 제외",
-                            selected = selectedType == TransactionType.TRANSFER,
-                            onClick = {
-                                val nextType = if (selectedType == TransactionType.TRANSFER) {
-                                    TransactionType.EXPENSE
-                                } else {
-                                    TransactionType.TRANSFER
-                                }
-                                onUpdateClassification(selectedSpaceId, nextType, selectedCatId, selectedSubId)
-                            },
-                            activeColor = TransferSlate
-                        )
-                    }
                 }
             }
 
@@ -838,7 +826,34 @@ private fun PendingQueueItemCard(
                     }
                 }
 
-                // 1) 저장할 곳: [공용 | 개인] (추천 공간이 미리 선택됨)
+                // 1) 유형: [지출 | 수입 | 이체/제외] (이체/제외는 지출·수입 합계에서 빠짐, 어디에 저장할지와는 별개)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "유형",
+                        fontSize = 13.sp,
+                        color = IosSystemGray,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .widthIn(min = 66.dp)
+                            .padding(end = 12.dp)
+                    )
+                    IosSegmentedControl(
+                        items = TransactionType.entries,
+                        selectedItem = selectedType,
+                        onItemSelected = { type ->
+                            val (catId, subId) = CategoryDefaults.pickForType(spaceCats, type, selectedCatId, selectedSubId)
+                            onUpdateClassification(selectedSpaceId, type, catId, subId)
+                        },
+                        labelProvider = { it.displayName },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // 2) 저장할 곳: [공용 | 개인] (추천 공간이 미리 선택됨)
                 val selectedSpace = uiState.spaces.firstOrNull { it.id == selectedSpaceId }
                 if (selectedSpace != null) {
                     Row(
@@ -851,7 +866,9 @@ private fun PendingQueueItemCard(
                             color = IosSystemGray,
                             maxLines = 1,
                             softWrap = false,
-                            modifier = Modifier.padding(end = 12.dp)
+                            modifier = Modifier
+                                .widthIn(min = 66.dp)
+                                .padding(end = 12.dp)
                         )
                         IosSegmentedControl(
                             items = uiState.spaces,
@@ -864,7 +881,7 @@ private fun PendingQueueItemCard(
                     }
                 }
 
-                // 2) 방안 1: 1줄 브레드크럼 카테고리 셀렉터 바 (클릭 시 2-Pane iOS 바텀시트 오픈)
+                // 3) 방안 1: 1줄 브레드크럼 카테고리 셀렉터 바 (클릭 시 2-Pane iOS 바텀시트 오픈)
                 IosCategorySelectorField(
                     spaceCategories = spaceCats,
                     selectedCategoryId = selectedCatId ?: 1L,

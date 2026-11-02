@@ -28,6 +28,27 @@ object CategoryDefaults {
             ?: if (parent.id == preferredCategoryId && preferredSubCategoryId == null) null else subs.firstOrNull()
         return parent.id to sub?.id
     }
+
+    /**
+     * 거래 유형을 바꿨을 때의 분류
+     * - 이체/제외는 합계에 들어가지 않으므로 지금 분류를 그대로 둠
+     * - 지출↔수입은 지금 분류가 바꾼 유형의 분류면 그대로, 아니면 그 유형의 첫 분류
+     */
+    fun pickForType(
+        spaceCategories: List<CategoryEntity>,
+        type: TransactionType,
+        categoryId: Long?,
+        subCategoryId: Long?
+    ): Pair<Long?, Long?> {
+        val current = spaceCategories.firstOrNull { it.id == categoryId && it.parentId == null }
+        val keepCurrent = type == TransactionType.TRANSFER || current?.transactionType == type
+        return pick(
+            spaceCategories = spaceCategories,
+            type = type,
+            preferredCategoryId = categoryId.takeIf { keepCurrent },
+            preferredSubCategoryId = subCategoryId.takeIf { keepCurrent }
+        )
+    }
 }
 
 /**

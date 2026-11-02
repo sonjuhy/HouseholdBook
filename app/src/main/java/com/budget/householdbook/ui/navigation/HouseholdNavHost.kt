@@ -92,7 +92,8 @@ fun HouseholdNavHost(
                         transactionDate = edit.transactionDate,
                         categoryId = edit.categoryId,
                         subCategoryId = edit.subCategoryId,
-                        memo = edit.memo
+                        memo = edit.memo,
+                        type = edit.type
                     )
                 }
             )

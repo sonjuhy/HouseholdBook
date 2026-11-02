@@ -35,8 +35,11 @@ import androidx.compose.ui.unit.sp
 import com.budget.householdbook.core.common.CurrencyAndDateFormatter
 import com.budget.householdbook.core.database.AppDatabase
 import com.budget.householdbook.core.designsystem.IosCategorySelectorField
+import com.budget.householdbook.core.designsystem.IosSegmentedControl
 import com.budget.householdbook.data.local.entity.CategoryEntity
 import com.budget.householdbook.data.local.entity.TransactionEntity
+import com.budget.householdbook.domain.model.CategoryDefaults
+import com.budget.householdbook.domain.model.TransactionType
 import com.budget.householdbook.ui.theme.IosSystemGray
 import java.time.Instant
 import java.time.LocalDate
@@ -52,13 +55,15 @@ data class TransactionEdit(
     val transactionDate: Long,
     val categoryId: Long,
     val subCategoryId: Long?,
-    val memo: String
+    val memo: String,
+    val type: TransactionType
 )
 
 private val DateLabelFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E)", Locale.KOREA)
 
 /**
- * 등록된 거래 수정: 이름·금액·날짜·분류·메모
+ * 등록된 거래 수정: 유형·이름·금액·날짜·분류·메모
+ * - 유형을 바꾸면 분류도 그 유형에 맞춤 (원래 유형으로 되돌리면 원래 분류로)
  * - 날짜를 바꾸면 원래 시각(시·분)은 그대로 두고 날짜만 바꿈
  * - 오늘 이후 날짜는 고를 수 없음
  */
@@ -76,6 +81,7 @@ fun EditTransactionDialog(
     var dateMillis by remember { mutableLongStateOf(tx.transactionDate) }
     var categoryId by remember { mutableLongStateOf(tx.categoryId) }
     var subCategoryId by remember { mutableStateOf(tx.subCategoryId) }
+    var type by remember { mutableStateOf(tx.type) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     val amount = amountText.toLongOrNull() ?: 0L
@@ -101,15 +107,28 @@ fun EditTransactionDialog(
         title = { Text("내역 수정") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    // 작성자는 여러 명이 쓰는 공통 생활비에서만 의미 있음
-                    text = if (tx.spaceId == AppDatabase.SPACE_ID_SHARED) {
-                        "${tx.type.displayName} · ${tx.authorName}님이 기록"
-                    } else {
-                        tx.type.displayName
+                // 작성자는 여러 명이 쓰는 공통 생활비에서만 의미 있음
+                if (tx.spaceId == AppDatabase.SPACE_ID_SHARED) {
+                    Text(
+                        text = "${tx.authorName}님이 기록",
+                        fontSize = 12.sp,
+                        color = IosSystemGray
+                    )
+                }
+                IosSegmentedControl(
+                    items = TransactionType.entries,
+                    selectedItem = type,
+                    onItemSelected = { next ->
+                        type = next
+                        val (nextCategoryId, nextSubCategoryId) = if (next == tx.type) {
+                            tx.categoryId to tx.subCategoryId
+                        } else {
+                            CategoryDefaults.pickForType(spaceCategories, next, categoryId, subCategoryId)
+                        }
+                        categoryId = nextCategoryId ?: categoryId
+                        subCategoryId = nextSubCategoryId
                     },
-                    fontSize = 12.sp,
-                    color = IosSystemGray
+                    labelProvider = { it.displayName }
                 )
                 OutlinedTextField(
                     value = title,
@@ -179,7 +198,8 @@ fun EditTransactionDialog(
                             transactionDate = dateMillis,
                             categoryId = categoryId,
                             subCategoryId = subCategoryId,
-                            memo = memo.trim()
+                            memo = memo.trim(),
+                            type = type
                         )
                     )
                 },

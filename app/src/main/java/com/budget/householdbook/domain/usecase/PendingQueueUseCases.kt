@@ -81,8 +81,12 @@ class ApprovePendingItemUseCase(
             pendingQueueRepository.updateStatus(pending.id, QueueStatus.APPROVED)
 
             // 이체 쌍이 함께 묶여 있던 경우 파트너도 함께 승인 완료 처리
-            pending.pairedQueueId?.let { partnerId ->
-                pendingQueueRepository.updateStatus(partnerId, QueueStatus.APPROVED)
+            // (어느 한쪽을 지출·수입으로 바꿨다면 실제 거래이므로 따로 저장하도록 남겨 둠)
+            if (transactionType == TransactionType.TRANSFER) {
+                pending.pairedQueueId
+                    ?.let { partnerId -> pendingQueueRepository.getById(partnerId) }
+                    ?.takeIf { partner -> partner.parsedType == TransactionType.TRANSFER }
+                    ?.let { partner -> pendingQueueRepository.updateStatus(partner.id, QueueStatus.APPROVED) }
             }
 
             // 가맹점명 -> 세부 카테고리 학습 저장

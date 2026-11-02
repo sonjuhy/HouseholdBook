@@ -204,4 +204,16 @@ class SourceFilterAndClassificationTest {
         assertEquals(10L to 11L, CategoryDefaults.pick(personalCats, TransactionType.EXPENSE, 99L, null))
         assertEquals(10L to 11L, CategoryDefaults.pick(personalCats, TransactionType.TRANSFER, 10L, 11L))
     }
+
+    @Test
+    fun `유형을 바꾸면 그 유형의 분류로 맞추고 이체는 분류를 그대로 둔다`() {
+        val personalCats = categories.state.value.filter { it.spaceId == personal }
+        // 지출 분류 → 수입: 수입 분류로, 수입 분류 → 지출: 지출 분류로
+        assertEquals(12L to null, CategoryDefaults.pickForType(personalCats, TransactionType.INCOME, 10L, 11L))
+        assertEquals(10L to 11L, CategoryDefaults.pickForType(personalCats, TransactionType.EXPENSE, 12L, null))
+        // 유형에 맞는 분류면 그대로
+        assertEquals(10L to 11L, CategoryDefaults.pickForType(personalCats, TransactionType.EXPENSE, 10L, 11L))
+        // 이체/제외는 합계에 안 들어가므로 수입 분류여도 그대로
+        assertEquals(12L to null, CategoryDefaults.pickForType(personalCats, TransactionType.TRANSFER, 12L, null))
+    }
 }

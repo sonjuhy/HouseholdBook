@@ -103,7 +103,7 @@ class DeleteTransactionUseCase(
 }
 
 /**
- * 이미 등록된 거래 수정 (이름·금액·날짜·분류·메모)
+ * 이미 등록된 거래 수정 (이름·금액·날짜·유형·분류·메모)
  * - 함께 쓰는 공통 생활비면 수정 시각을 갱신해 공유 장부에도 반영 (다른 멤버 휴대폰은 더 최근 수정으로 덮어씀)
  * - 작성자·취소 여부·공간은 바꾸지 않음
  * @return 실제로 바뀐 내용이 있으면 수정된 거래, 없거나 거래가 없으면 null
@@ -120,6 +120,7 @@ class UpdateTransactionUseCase(
         categoryId: Long,
         subCategoryId: Long?,
         memo: String,
+        type: TransactionType,
         nowMillis: Long = System.currentTimeMillis()
     ): TransactionEntity? {
         require(amount > 0) { "금액을 입력해 주세요." }
@@ -133,7 +134,8 @@ class UpdateTransactionUseCase(
             transactionDate = transactionDate,
             categoryId = categoryId,
             subCategoryId = subCategoryId,
-            memo = memo.trim()
+            memo = memo.trim(),
+            type = type
         )
         if (edited == tx) return null
 

@@ -48,7 +48,7 @@ class UpdateTransactionUseCaseTest {
 
         val saved = update(
             transactionId = 2, merchantOrTitle = "  쿠팡 로켓배송 ", amount = 21_000, transactionDate = 5_000L,
-            categoryId = 9, subCategoryId = 10, memo = " 생필품 ", nowMillis = 9_999L
+            categoryId = 9, subCategoryId = 10, memo = " 생필품 ", type = TransactionType.EXPENSE, nowMillis = 9_999L
         )
 
         val tx = transactions.state.value.first { it.id == 2L }
@@ -71,7 +71,7 @@ class UpdateTransactionUseCaseTest {
     fun `함께 쓰는 공통 생활비를 고치면 업로드 대기로 두고 동기화한다`() = runTest {
         val (transactions, sync, update) = setUp(sharedActive = true)
 
-        update(1, "쿠팡", 20_000, 1_000L, 1, null, "", nowMillis = 9_999L)
+        update(1, "쿠팡", 20_000, 1_000L, 1, null, "", TransactionType.EXPENSE, nowMillis = 9_999L)
 
         val tx = transactions.state.value.first { it.id == 1L }
         assertEquals(20_000L, tx.amount)
@@ -81,11 +81,27 @@ class UpdateTransactionUseCaseTest {
     }
 
     @Test
+    fun `이체를 수입으로, 지출을 이체로 바꾸고 공유 장부에도 반영한다`() = runTest {
+        val (transactions, sync, update) = setUp(sharedActive = true)
+
+        val income = update(1, "쿠팡", 18_900, 1_000L, 5, null, "", TransactionType.INCOME, nowMillis = 2_000L)
+        assertEquals(TransactionType.INCOME, income?.type)
+        assertEquals(5L, income?.categoryId)
+        assertEquals(SyncStatus.PENDING_UPLOAD, income?.syncStatus)
+        assertFalse(sync.syncCalls.isEmpty())
+
+        val transfer = update(1, "쿠팡", 18_900, 1_000L, 5, null, "", TransactionType.TRANSFER, nowMillis = 3_000L)
+        assertEquals(TransactionType.TRANSFER, transfer?.type)
+        assertEquals(TransactionType.TRANSFER, transactions.state.value.first { it.id == 1L }.type)
+        assertEquals(3_000L, transactions.state.value.first { it.id == 1L }.updatedAt)
+    }
+
+    @Test
     fun `바뀐 내용이 없거나 없는 거래면 아무것도 저장하지 않는다`() = runTest {
         val (transactions, sync, update) = setUp(sharedActive = true)
 
-        assertNull(update(1, "쿠팡", 18_900, 1_000L, 1, null, ""))
-        assertNull(update(999, "쿠팡", 18_900, 1_000L, 1, null, ""))
+        assertNull(update(1, "쿠팡", 18_900, 1_000L, 1, null, "", TransactionType.EXPENSE))
+        assertNull(update(999, "쿠팡", 18_900, 1_000L, 1, null, "", TransactionType.EXPENSE))
         assertEquals(1L, transactions.state.value.first { it.id == 1L }.updatedAt)
         assertTrue(sync.syncCalls.isEmpty())
     }
@@ -94,8 +110,8 @@ class UpdateTransactionUseCaseTest {
     fun `금액이 0원이거나 이름이 비어 있으면 거절한다`() = runTest {
         val (transactions, _, update) = setUp(sharedActive = false)
 
-        assertTrue(runCatching { update(2, "쿠팡", 0, 1_000L, 1, null, "") }.isFailure)
-        assertTrue(runCatching { update(2, "   ", 18_900, 1_000L, 1, null, "") }.isFailure)
+        assertTrue(runCatching { update(2, "쿠팡", 0, 1_000L, 1, null, "", TransactionType.EXPENSE) }.isFailure)
+        assertTrue(runCatching { update(2, "   ", 18_900, 1_000L, 1, null, "", TransactionType.EXPENSE) }.isFailure)
         assertEquals(18_900L, transactions.state.value.first { it.id == 2L }.amount)
     }
 }

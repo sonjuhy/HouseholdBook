@@ -40,7 +40,8 @@ class EditTransactionDialogTest {
     )
     private val categories = listOf(
         CategoryEntity(id = 1, spaceId = "space_shared_default", name = "식비"),
-        CategoryEntity(id = 2, spaceId = "space_shared_default", name = "생활용품")
+        CategoryEntity(id = 2, spaceId = "space_shared_default", name = "생활용품"),
+        CategoryEntity(id = 3, spaceId = "space_shared_default", name = "월급", transactionType = TransactionType.INCOME)
     )
 
     private var saved: TransactionEdit? = null
@@ -63,7 +64,7 @@ class EditTransactionDialogTest {
     fun 원래_값이_채워져_있고_이름과_금액을_고쳐_저장한다() {
         show()
         composeRule.onNodeWithText("2026년 10월 15일 (목)").assertExists()
-        composeRule.onNodeWithText("지출 · 엄마님이 기록").assertExists()
+        composeRule.onNodeWithText("엄마님이 기록").assertExists()
 
         // 입력 칸은 라벨로 찾음 (내용을 지우면 값으로는 다시 찾을 수 없음)
         val title = composeRule.onNode(hasSetTextAction() and hasText("이름 (가게·내역)"))
@@ -81,6 +82,30 @@ class EditTransactionDialogTest {
         assertEquals(tx.transactionDate, edit.transactionDate)
         assertEquals(1L, edit.categoryId)
         assertEquals("생필품", edit.memo)
+        assertEquals(TransactionType.EXPENSE, edit.type)
+    }
+
+    @Test
+    fun 유형을_바꾸면_분류도_맞추고_되돌리면_원래_분류로_돌아간다() {
+        show()
+        composeRule.onNodeWithText("수입").performClick()
+        composeRule.onNodeWithText("저장").performClick()
+        assertEquals(TransactionType.INCOME, saved!!.type)
+        assertEquals(3L, saved!!.categoryId)
+
+        composeRule.onNodeWithText("지출").performClick()
+        composeRule.onNodeWithText("저장").performClick()
+        assertEquals(TransactionType.EXPENSE, saved!!.type)
+        assertEquals(1L, saved!!.categoryId)
+    }
+
+    @Test
+    fun 이체로_바꿔도_분류는_그대로_둔다() {
+        show()
+        composeRule.onNodeWithText("이체/제외").performClick()
+        composeRule.onNodeWithText("저장").performClick()
+        assertEquals(TransactionType.TRANSFER, saved!!.type)
+        assertEquals(1L, saved!!.categoryId)
     }
 
     @Test

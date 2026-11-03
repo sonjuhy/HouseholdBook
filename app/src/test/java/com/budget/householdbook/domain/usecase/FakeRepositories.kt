@@ -281,12 +281,14 @@ class FakeSharedSyncRepository : SharedSyncRepository {
     val syncCalls = mutableListOf<Pair<UserTier, Boolean>>()
     var syncResult = true
     var canSync = true
+    var sharingApproved: Boolean? = true
     override val syncStatusMessage: StateFlow<String> = MutableStateFlow("")
     override suspend fun syncIfEligible(userTier: UserTier, isRemoteShared: Boolean): Boolean {
         syncCalls += userTier to isRemoteShared
         return syncResult
     }
     override fun canSyncNow() = canSync
+    override suspend fun isSharingApproved() = sharingApproved
     override suspend fun signInWithGoogleAccount(uiHost: Any?, manualGoogleEmail: String?, manualDisplayName: String?): Result<GoogleLoginResult> =
         Result.failure(UnsupportedOperationException())
     var pendingInvitation: GoogleLoginResult? = null

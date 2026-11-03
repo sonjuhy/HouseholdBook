@@ -266,12 +266,57 @@ class BudgetMealAndSyncUseCasesTest {
         update("나, 짝꿍", isShared = true, customInviteCode = "hb-abcd-efgh")
         assertEquals("HB-ABCD-EFGH", spaces.getSpaceById(shared)!!.inviteCode)
 
-        UpdateUserTierUseCase(settings, update)(UserTier.FREE)
+        UpdateUserTierUseCase(settings, update, sync)(UserTier.FREE)
         val space = spaces.getSpaceById(shared)!!
         assertNull(space.inviteCode)
         assertEquals(false, space.isRemoteShared)
         // 이름이 없고 로그인 전이면 '나' (예전처럼 예시 이름·'(혼자 쓰기)' 꼬리표를 붙이지 않음)
         assertEquals("나", space.memberNamesCsv)
+    }
+
+    @Test
+    fun `함께 쓰기는 허가를 확인한 계정만 바꿀 수 있고 혼자 쓰기는 언제든 바꿀 수 있다`() = runTest {
+        val settings = FakeSettingsRepository(AppUserSettings(userTier = UserTier.FREE))
+        val spaces = FakeLedgerSpaceRepository(listOf(sharedSpace))
+        val sync = FakeSharedSyncRepository()
+        val useCase = UpdateUserTierUseCase(settings, UpdateSharedMembersUseCase(settings, spaces, sync), sync)
+
+        for (notApproved in listOf(false, null)) {
+            sync.sharingApproved = notApproved
+            assertEquals(false, useCase(UserTier.PRO))
+            assertEquals(UserTier.FREE, settings.userSettingsFlow.first().userTier)
+            assertEquals(false, spaces.getSpaceById(shared)!!.isRemoteShared)
+        }
+
+        sync.sharingApproved = true
+        assertEquals(true, useCase(UserTier.PRO))
+        assertEquals(UserTier.PRO, settings.userSettingsFlow.first().userTier)
+        assertEquals(true, spaces.getSpaceById(shared)!!.isRemoteShared)
+
+        sync.sharingApproved = false
+        assertEquals(true, useCase(UserTier.FREE))
+        assertEquals(UserTier.FREE, settings.userSettingsFlow.first().userTier)
+    }
+
+    @Test
+    fun `앱을 열 때 허가가 취소된 계정은 혼자 쓰기로 돌아가고 확인하지 못하면 그대로 둔다`() = runTest {
+        val settings = FakeSettingsRepository(AppUserSettings(userTier = UserTier.PRO))
+        val spaces = FakeLedgerSpaceRepository(listOf(sharedSpace.copy(isRemoteShared = true, inviteCode = "HB-ABCD-EFGH")))
+        val sync = FakeSharedSyncRepository()
+        val useCase = SyncOnAppStartUseCase(settings, spaces, sync, FakeTransactionRepository())
+
+        sync.sharingApproved = null
+        useCase()
+        assertEquals(UserTier.PRO, settings.userSettingsFlow.first().userTier)
+        assertEquals(listOf(UserTier.PRO to true), sync.syncCalls)
+
+        sync.sharingApproved = false
+        useCase()
+        assertEquals(UserTier.FREE, settings.userSettingsFlow.first().userTier)
+        val space = spaces.getSpaceById(shared)!!
+        assertNull(space.inviteCode)
+        assertEquals(false, space.isRemoteShared)
+        assertEquals(UserTier.FREE to false, sync.syncCalls.last())
     }
 
     @Test

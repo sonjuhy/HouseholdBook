@@ -38,6 +38,7 @@ class SyncSharedChangesUseCase(
 
 /**
  * 앱 시작 시 프리미엄(함께 쓰기) 상태이면 즉시 실시간 공유 연결
+ * - 허가가 취소된 계정은 혼자 쓰기로 돌림 (기록은 유지). 확인하지 못했으면(인터넷 오류 등) 그대로 둠
  */
 class SyncOnAppStartUseCase(
     private val settingsRepository: SettingsRepository,
@@ -59,10 +60,20 @@ class SyncOnAppStartUseCase(
             oldName = MemberNames.LEGACY_PLACEHOLDER_NAME,
             newName = settings.displayName
         )
+        if (settings.userTier == UserTier.PRO && sharedSyncRepository.isSharingApproved() == false) {
+            settingsRepository.setUserTier(UserTier.FREE)
+            spaceRepository.updateShareConfig(
+                spaceId = AppDatabase.SPACE_ID_SHARED,
+                memberNamesCsv = settings.displayName,
+                inviteCode = null,
+                isShared = false
+            )
+        }
+        val userTier = settingsRepository.userSettingsFlow.first().userTier
         val sharedSpace = spaceRepository.getSpaceById(AppDatabase.SPACE_ID_SHARED)
         sharedSyncRepository.syncIfEligible(
-            userTier = settings.userTier,
-            isRemoteShared = sharedSpace?.isRemoteShared == true || settings.userTier == UserTier.PRO
+            userTier = userTier,
+            isRemoteShared = sharedSpace?.isRemoteShared == true || userTier == UserTier.PRO
         )
     }
 }
@@ -133,16 +144,20 @@ class UpdateSharedMembersUseCase(
 
 /**
  * 플랜(혼자 쓰기 / 함께 쓰기) 변경: 공통 생활비 공유 설정을 함께 맞춥니다.
+ * @return 바꿨는지 (함께 쓰기는 허가를 확인한 계정만 바꿀 수 있음)
  */
 class UpdateUserTierUseCase(
     private val settingsRepository: SettingsRepository,
-    private val updateSharedMembers: UpdateSharedMembersUseCase
+    private val updateSharedMembers: UpdateSharedMembersUseCase,
+    private val sharedSyncRepository: SharedSyncRepository
 ) {
-    suspend operator fun invoke(tier: UserTier) {
+    suspend operator fun invoke(tier: UserTier): Boolean {
+        if (tier == UserTier.PRO && sharedSyncRepository.isSharingApproved() != true) return false
         settingsRepository.setUserTier(tier)
         // 멤버 이름 목록은 실제 참여자 기준 (함께 쓰는 사람이 들어오면 동기화 때 채워짐)
         val currentName = settingsRepository.userSettingsFlow.first().displayName
         updateSharedMembers(currentName, isShared = tier == UserTier.PRO)
+        return true
     }
 }
 

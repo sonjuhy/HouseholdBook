@@ -20,6 +20,8 @@ class FirebaseSharedSyncRepository(
 
     override fun canSyncNow(): Boolean = syncManager.canSyncNow()
 
+    override suspend fun isSharingApproved(): Boolean? = syncManager.isSharingApproved()
+
     override suspend fun signInWithGoogleAccount(
         uiHost: Any?,
         manualGoogleEmail: String?,

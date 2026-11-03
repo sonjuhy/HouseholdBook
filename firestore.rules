@@ -4,6 +4,8 @@ rules_version = '2';
 // - 모든 클라우드 접근은 Google 계정(이메일 인증 완료)으로 로그인한 사용자만 가능 (익명 로그인 차단)
 // - 공유 장부(shared_spaces/{inviteCode})는 방 문서의 memberEmails에 포함된 멤버만 읽고 쓸 수 있음
 //   → 초대번호를 알아도 초대받지 않은 계정은 접근 불가
+// - 함께 쓰기는 허가 명단(pro_members)에 있는 계정만 가능. 명단은 앱에서 바꿀 수 없고 Firebase 콘솔에서만 관리
+//   → users/{uid}의 userTier는 사용자가 쓰는 값이라 권한 판단에 쓰지 않음
 // - 데이터 구조는 app/.../data/sync/RemoteSyncManager.kt 와 함께 변경해야 함
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -29,8 +31,23 @@ service cloud.firestore {
       return /databases/$(database)/documents/shared_spaces/$(code);
     }
 
+    function isApprovedEmail(email) {
+      return exists(/databases/$(database)/documents/pro_members/$(email));
+    }
+
+    function isApproved() {
+      return signedInWithGoogle() && isApprovedEmail(myEmail());
+    }
+
     function isRoomMember(code) {
-      return signedInWithGoogle() && myEmail() in get(roomPath(code)).data.memberEmails;
+      return isApproved() && myEmail() in get(roomPath(code)).data.memberEmails;
+    }
+
+    // 0. 함께 쓰기 허가 명단: 문서 ID = 소문자 구글 이메일 (Firebase 콘솔에서만 추가·삭제)
+    //    내 허가 여부는 누구나 확인할 수 있고, 허가받은 사람은 초대 전에 상대 허가 여부를 확인할 수 있음
+    match /pro_members/{email} {
+      allow get: if signedInWithGoogle() && (email == myEmail() || isApproved());
+      allow list, write: if false;
     }
 
     // 1. 사용자 프로필 및 플랜 정보: 본인(uid)만 접근
@@ -55,6 +72,7 @@ service cloud.firestore {
         && request.resource.data.inviterEmail == myEmail()
         && request.resource.data.status == 'PENDING'
         && isRoomMember(request.resource.data.inviteCode)
+        && isApprovedEmail(request.resource.data.partnerEmail)
         && request.resource.data.partnerEmail in get(roomPath(request.resource.data.inviteCode)).data.memberEmails;
 
       allow update: if signedInWithGoogle() && (
@@ -70,7 +88,8 @@ service cloud.firestore {
         (resource.data.partnerEmail == myEmail()
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['status', 'acceptedAt', 'partnerUid', 'partnerName'])
-          && request.resource.data.status in ['ACCEPTED', 'DECLINED']
+          && (request.resource.data.status == 'DECLINED'
+            || (request.resource.data.status == 'ACCEPTED' && isApproved()))
           && request.resource.data.partnerUid == request.auth.uid)
       );
 
@@ -90,7 +109,7 @@ service cloud.firestore {
       }
 
       // 없는 방은 "없음"만 확인 가능 (새 방 생성 전 확인용), 있는 방은 멤버만 조회
-      allow get: if signedInWithGoogle()
+      allow get: if isApproved()
         && (resource == null || myEmail() in resource.data.memberEmails);
       allow list: if false;
 
@@ -140,7 +159,7 @@ service cloud.firestore {
       }
 
       // 방을 만든 사람이 방장이며, 처음에는 본인만 멤버(참여 완료)
-      allow create: if signedInWithGoogle()
+      allow create: if isApproved()
         && isValidInviteCode(inviteCode)
         && isValidRoom(request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
@@ -150,7 +169,7 @@ service cloud.firestore {
 
       // 기존 멤버만 변경 가능. 방장 정보는 방장 넘기기로만 바뀌고 방장은 내보낼 수 없으며,
       // 참여한 멤버는 항상 memberEmails 안에 있어야 함
-      allow update: if signedInWithGoogle()
+      allow update: if isApproved()
         && myEmail() in resource.data.memberEmails
         && isValidRoom(request.resource.data)
         && ownerChangeAllowed()
@@ -159,7 +178,7 @@ service cloud.firestore {
         && (isOwnerOf(resource.data) || memberChangeAllowedForNonOwner());
 
       // 방 삭제는 방장만 (회원 탈퇴 시 혼자 남은 방장의 공유 장부 정리)
-      allow delete: if signedInWithGoogle() && isOwnerOf(resource.data);
+      allow delete: if isApproved() && isOwnerOf(resource.data);
 
       // 공통 생활비 거래 내역: 방 멤버만 읽고 쓰기
       match /transactions/{remoteId} {

@@ -154,6 +154,8 @@ interface SharedSyncRepository {
     suspend fun syncIfEligible(userTier: UserTier, isRemoteShared: Boolean): Boolean
     /** 지금 동기화 가능한 상태인지 (Firebase 설정 + 구글 로그인) */
     fun canSyncNow(): Boolean
+    /** 로그인한 계정이 함께 쓰기 허가 명단에 있는지. 인터넷 오류 등으로 확인하지 못했으면 null */
+    suspend fun isSharingApproved(): Boolean?
     /**
      * @param uiHost 구글 인증 창을 띄울 화면 (Android에서는 Activity, 없으면 null)
      */

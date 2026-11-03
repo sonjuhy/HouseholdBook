@@ -1,7 +1,7 @@
 // firestore.rules 보안 규칙 테스트
 // 실행: cd firestore-tests && npm install && npm test   (Java 11+ 필요, Firebase 에뮬레이터가 자동으로 켜졌다 꺼짐)
 // 앱(RemoteSyncManager.kt)이 쓰는 경로·필드와 같은 모양으로 검증합니다.
-import { after, afterEach, before, describe, test } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
   assertFails,
@@ -20,12 +20,15 @@ import {
   collection,
   query,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 
 const ROOM = 'HB-ABCD-EFGH';
 const OWNER = { uid: 'owner-uid', email: 'owner@gmail.com' };
 const PARTNER = { uid: 'partner-uid', email: 'partner@gmail.com' };
 const STRANGER = { uid: 'stranger-uid', email: 'stranger@gmail.com' };
+/** 함께 쓰기 허가 명단에 없는 계정 (나머지는 모두 허가된 상태로 시작) */
+const UNAPPROVED = { uid: 'unapproved-uid', email: 'unapproved@gmail.com' };
 
 let env;
 
@@ -104,6 +107,15 @@ before(async () => {
     firestore: {
       rules: readFileSync(process.env.RULES_FILE ?? new URL('../firestore.rules', import.meta.url), 'utf8'),
     },
+  });
+});
+
+beforeEach(async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    for (const email of [OWNER.email, PARTNER.email, STRANGER.email, 'invited@gmail.com']) {
+      await setDoc(doc(db, 'pro_members', email), { note: '테스트' });
+    }
   });
 });
 
@@ -534,6 +546,99 @@ describe('방장 넘기기 · 회원 탈퇴', () => {
     assertEqualCount(received.size, 1);
     for (const d of received.docs) await assertSucceeds(deleteDoc(d.ref));
     await assertFails(getDocs(query(collection(partner, 'invitations'), where('inviterUid', '==', OWNER.uid))));
+  });
+});
+
+describe('함께 쓰기 허가 명단', () => {
+  const memberRef = (db, email) => doc(db, 'pro_members', email);
+  const roomRef = (db) => doc(db, 'shared_spaces', ROOM);
+  const txRef = (db, id = 'tx-1') => doc(db, 'shared_spaces', ROOM, 'transactions', id);
+  const revoke = (email) =>
+    env.withSecurityRulesDisabled((ctx) => deleteDoc(memberRef(ctx.firestore(), email)));
+
+  test('명단은 앱에서 추가·수정·삭제하거나 목록으로 볼 수 없다', async () => {
+    const unapproved = googleUser(UNAPPROVED);
+    await assertFails(setDoc(memberRef(unapproved, UNAPPROVED.email), { note: '셀프 허가' }));
+    const owner = googleUser(OWNER);
+    await assertFails(setDoc(memberRef(owner, UNAPPROVED.email), { note: '남을 허가' }));
+    await assertFails(setDoc(memberRef(owner, OWNER.email), { note: '수정' }));
+    await assertFails(deleteDoc(memberRef(owner, OWNER.email)));
+    await assertFails(getDocs(collection(owner, 'pro_members')));
+    await assertFails(getDocs(collection(unapproved, 'pro_members')));
+  });
+
+  test('내 허가 여부는 누구나 보고, 남의 허가 여부는 허가받은 사람만 본다', async () => {
+    const unapproved = googleUser(UNAPPROVED);
+    await assertSucceeds(getDoc(memberRef(unapproved, UNAPPROVED.email)));
+    await assertFails(getDoc(memberRef(unapproved, OWNER.email)));
+    await assertSucceeds(getDoc(memberRef(googleUser(OWNER), UNAPPROVED.email)));
+    await assertFails(getDoc(memberRef(anonymousUser(), OWNER.email)));
+  });
+
+  test('허가받지 않은 계정은 프로필에 PRO를 써도 방을 만들 수 없다', async () => {
+    const db = googleUser(UNAPPROVED);
+    await assertSucceeds(
+      setDoc(doc(db, 'users', UNAPPROVED.uid), { uid: UNAPPROVED.uid, email: UNAPPROVED.email, userTier: 'PRO' })
+    );
+    await assertFails(getDoc(roomRef(db)));
+    await assertFails(
+      setDoc(roomRef(db), { ...roomData([UNAPPROVED.email]), ownerUid: UNAPPROVED.uid, ownerEmail: UNAPPROVED.email })
+    );
+  });
+
+  test('명단에 올라 있어도 허가받지 않았으면 공유 장부를 읽고 쓰거나 참여할 수 없다', async () => {
+    await seedRoom([OWNER.email, UNAPPROVED.email]);
+    const db = googleUser(UNAPPROVED);
+    await assertFails(getDoc(roomRef(db)));
+    await assertFails(updateDoc(roomRef(db), { joinedEmails: arrayUnion(UNAPPROVED.email) }));
+    await assertFails(getDoc(txRef(db)));
+    await assertFails(getDocs(collection(db, 'shared_spaces', ROOM, 'transactions')));
+    await assertFails(setDoc(txRef(db, 'tx-2'), transaction('tx-2')));
+    await assertFails(getDocs(collection(db, 'shared_spaces', ROOM, 'categories')));
+  });
+
+  test('허가받지 않은 상대에게는 초대장을 만들 수 없고, 받은 초대는 거절만 할 수 있다', async () => {
+    await seedRoom([OWNER.email, UNAPPROVED.email]);
+    const invitationId = `${ROOM}__${UNAPPROVED.email}`;
+    const invitation = {
+      inviteCode: ROOM,
+      inviterUid: OWNER.uid,
+      inviterEmail: OWNER.email,
+      partnerEmail: UNAPPROVED.email,
+      status: 'PENDING',
+    };
+    await assertFails(setDoc(doc(googleUser(OWNER), 'invitations', invitationId), invitation));
+
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'invitations', invitationId), invitation));
+    const db = googleUser(UNAPPROVED);
+    await assertFails(
+      updateDoc(doc(db, 'invitations', invitationId), { status: 'ACCEPTED', partnerUid: UNAPPROVED.uid })
+    );
+    await assertSucceeds(
+      updateDoc(doc(db, 'invitations', invitationId), { status: 'DECLINED', partnerUid: UNAPPROVED.uid })
+    );
+  });
+
+  test('허가를 취소하면 방장도 바로 공유 장부에 접근할 수 없고, 탈퇴에 필요한 정리는 할 수 있다', async () => {
+    await seedRoom();
+    await assertSucceeds(getDoc(txRef(googleUser(OWNER))));
+    await revoke(OWNER.email);
+
+    const owner = googleUser(OWNER);
+    await assertFails(getDoc(roomRef(owner)));
+    await assertFails(getDoc(txRef(owner)));
+    await assertFails(deleteDoc(roomRef(owner)));
+    await assertSucceeds(getDocs(query(collection(owner, 'invitations'), where('inviterUid', '==', OWNER.uid))));
+    await assertSucceeds(setDoc(doc(owner, 'users', OWNER.uid), { uid: OWNER.uid, email: OWNER.email }));
+    await assertSucceeds(deleteDoc(doc(owner, 'users', OWNER.uid)));
+  });
+
+  test('허가받은 멤버는 한 번에 많은 거래를 올릴 수 있다 (규칙의 문서 조회 한도 안)', async () => {
+    await seedRoom();
+    const db = googleUser(OWNER);
+    const batch = writeBatch(db);
+    for (let i = 0; i < 400; i++) batch.set(txRef(db, `tx-b${i}`), transaction(`tx-b${i}`));
+    await assertSucceeds(batch.commit());
   });
 });
 

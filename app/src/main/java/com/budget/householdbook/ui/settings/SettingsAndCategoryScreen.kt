@@ -325,7 +325,7 @@ fun SettingsAndCategoryScreen(
                             )
                             Text(
                                 text = if (uiState.settings.userTier == UserTier.FREE) {
-                                    "이 휴대폰에만 저장되고 다른 사람과 공유되지 않아요."
+                                    "이 휴대폰에만 저장되고 다른 사람과 공유되지 않아요. 함께 쓰기는 허가받은 계정만 쓸 수 있어요."
                                 } else {
                                     "가족과 같은 장부를 실시간으로 함께 써요. 인터넷이 없어도 기록되고 연결되면 자동으로 맞춰져요."
                                 },

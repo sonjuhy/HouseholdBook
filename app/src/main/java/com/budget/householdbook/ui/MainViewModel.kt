@@ -517,11 +517,11 @@ class MainViewModel(
 
     fun updateUserTier(tier: UserTier) {
         viewModelScope.launch {
-            account.updateUserTier(tier)
-            _snackbarMessage.value = if (tier == UserTier.FREE) {
-                "혼자 쓰기로 바꿨어요. 이 휴대폰에만 저장돼요."
-            } else {
-                "함께 쓰기로 바꿨어요. 가족을 초대해 보세요."
+            val changed = account.updateUserTier(tier)
+            _snackbarMessage.value = when {
+                !changed -> "함께 쓰기는 허가받은 계정만 쓸 수 있어요. 로그인과 인터넷 연결을 확인해 주세요."
+                tier == UserTier.FREE -> "혼자 쓰기로 바꿨어요. 이 휴대폰에만 저장돼요."
+                else -> "함께 쓰기로 바꿨어요. 가족을 초대해 보세요."
             }
         }
     }

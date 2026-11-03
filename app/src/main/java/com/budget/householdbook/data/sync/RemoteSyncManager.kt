@@ -72,6 +72,7 @@ class NotRoomMemberException(val inviteCode: String) : IllegalStateException(
  * Firebase(Google Auth + Cloud Firestore) 실시간 동기화 및 구글 계정 초대 매니저
  *
  * Firestore 구조 (`firestore.rules`와 함께 변경해야 함):
+ * - `pro_members/{이메일}`: 함께 쓰기 허가 명단 (Firebase 콘솔에서만 관리, 앱은 읽기만)
  * - `users/{uid}`: 내 프로필·플랜 (본인만 접근)
  * - `invitations/{inviteCode}__{partnerEmail}`: 초대장 (초대한 멤버·초대받은 사람만 접근)
  * - `shared_spaces/{inviteCode}`: 방 정보 + `memberEmails` 멤버 명단 (멤버만 접근)
@@ -171,6 +172,20 @@ class RemoteSyncManager(
         if (user.isAnonymous || user.email.isNullOrBlank()) return null
         if (user.providerData.none { it.providerId == GoogleAuthProvider.PROVIDER_ID }) return null
         return user
+    }
+
+    private suspend fun isApproved(firestore: FirebaseFirestore, email: String): Boolean =
+        firestore.collection(PRO_MEMBERS).document(email).get().await().exists()
+
+    /**
+     * 로그인한 계정이 함께 쓰기 허가 명단에 있는지
+     * @return 로그인하지 않았으면 false, 인터넷 오류 등으로 확인하지 못했으면 null
+     */
+    suspend fun isSharingApproved(): Boolean? {
+        if (!isFirebaseConfigured()) return false
+        val user = currentGoogleUser() ?: return false
+        val email = user.email.orEmpty().trim().lowercase()
+        return runCatching { isApproved(FirebaseFirestore.getInstance(), email) }.getOrNull()
     }
 
     private fun userProfileDoc(firestore: FirebaseFirestore, uid: String) =
@@ -436,6 +451,7 @@ class RemoteSyncManager(
         return runCatching {
             val email = user.email.orEmpty().trim().lowercase()
             val firestore = FirebaseFirestore.getInstance()
+            if (!isApproved(firestore, email)) return@runCatching null
             val invite = findUsableInvitation(firestore, user.uid, email) ?: return@runCatching null
             val displayName = preferredName?.trim()?.takeIf { it.isNotBlank() }
                 ?: user.displayName?.trim()?.takeIf { it.isNotBlank() }
@@ -506,18 +522,23 @@ class RemoteSyncManager(
             val now = System.currentTimeMillis()
             val userDocRef = userProfileDoc(firestore, uid)
 
-            // 2. 먼저 내 구글 이메일로 도착한 '함께 쓰기 초대장'이 있으면 수락하고 그 공유 장부로 연결
-            findUsableInvitation(firestore, uid, email)?.let { invite ->
-                return@runCatching acceptInvitation(firestore, invite, uid, email, displayName)
+            // 2. 허가받은 계정은 내 구글 이메일로 도착한 '함께 쓰기 초대장'이 있으면 수락하고 그 공유 장부로 연결
+            val approved = isApproved(firestore, email)
+            if (approved) {
+                findUsableInvitation(firestore, uid, email)?.let { invite ->
+                    return@runCatching acceptInvitation(firestore, invite, uid, email, displayName)
+                }
             }
 
-            // 3. 기존에 가입된 구글 계정 프로필에서 PRO인지 FREE인지 확인
+            // 3. 기존에 가입된 구글 계정 프로필에서 PRO인지 FREE인지 확인 (허가가 없으면 저장된 값과 관계없이 FREE)
             val userSnap = userDocRef.get().await()
 
             if (userSnap.exists()) {
                 val savedTierStr = userSnap.getString("userTier") ?: UserTier.FREE.name
                 val resolvedTier = runCatching { UserTier.valueOf(savedTierStr) }
                     .getOrDefault(UserTier.FREE)
+                    .takeIf { approved }
+                    ?: UserTier.FREE
                 val savedInviteCode = userSnap.getString("inviteCode")
                     ?.takeIf { isValidInviteCode(it) }
                     ?: generateInviteCode()
@@ -658,6 +679,10 @@ class RemoteSyncManager(
 
         return runCatching {
             val firestore = FirebaseFirestore.getInstance()
+            if (!isApproved(firestore, myEmail)) throw IllegalStateException(NOT_APPROVED_MESSAGE)
+            if (!isApproved(firestore, cleanPartnerEmail)) {
+                throw IllegalStateException("$cleanPartnerEmail 계정은 아직 함께 쓰기 허가를 받지 않았어요.")
+            }
             val now = System.currentTimeMillis()
             val cleanCode = inviteCode.trim().uppercase().takeIf { isValidInviteCode(it) }
                 ?: generateInviteCode()
@@ -1268,11 +1293,13 @@ class RemoteSyncManager(
     companion object {
         /** SHA-1 미등록 등 Firebase 설정 문제로 구글 로그인이 막혔을 때 안내 */
         private const val LOGIN_REQUIRED_MESSAGE = "구글 계정으로 로그인한 뒤 이용할 수 있습니다."
+        private const val NOT_APPROVED_MESSAGE = "함께 쓰기는 허가받은 계정만 쓸 수 있어요."
 
         const val GOOGLE_SIGN_IN_SETUP_MESSAGE =
             "구글 로그인 설정이 끝나지 않았습니다. Firebase 콘솔에 이 앱의 SHA-1 인증서 지문을 등록하고, " +
                 "새 google-services.json을 받아 앱에 넣은 뒤 다시 빌드해주세요."
 
+        private const val PRO_MEMBERS = "pro_members"
         private const val USERS = "users"
         private const val INVITATIONS = "invitations"
         private const val SHARED_SPACES = "shared_spaces"

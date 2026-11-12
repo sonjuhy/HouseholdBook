@@ -122,7 +122,7 @@ class AndroidAppNotifier(private val context: Context) : AppNotifier {
         val won = CurrencyAndDateFormatter::formatWon
         val (title, text) = when (alert.level) {
             BudgetAlertLevel.EXCEEDED -> "${alert.spaceName} 예산을 넘었어요" to
-                "목표 ${won(alert.target)}보다 ${won(-alert.remaining)} 더 썼어요"
+                "${if (alert.income > 0L) "목표+수입" else "목표"} ${won(alert.available)}보다 ${won(-alert.remaining)} 더 썼어요"
             else -> "${alert.spaceName} 예산의 ${alert.level.percent}%를 썼어요" to buildString {
                 append("남은 예산 ${won(alert.remaining)}")
                 if (alert.remainingDays > 0) append(" · 하루 ${won(alert.remaining / alert.remainingDays)} 쓸 수 있어요")

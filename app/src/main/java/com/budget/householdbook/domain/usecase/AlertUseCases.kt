@@ -92,14 +92,18 @@ class CheckBudgetAlertUseCase(
 ) {
     suspend operator fun invoke(spaceId: String, today: LocalDate = LocalDate.now()) {
         val space = spaceRepository.getSpaceById(spaceId) ?: return
+        // 목표 예산을 정하지 않은 공간은 수입이 있어도 알리지 않음
+        if (space.targetBudgetAmount <= 0L) return
         val period = BillingCycleCalculator.calculatePeriod(baseDate = today, billingStartDay = space.billingStartDay)
-        val spent = transactionRepository
+        val active = transactionRepository
             .observeTransactionsInPeriod(spaceId, period.startMillis, period.endExclusiveMillis)
             .first()
-            .filter { !it.isCanceled && it.type == TransactionType.EXPENSE && it.syncStatus != SyncStatus.PENDING_DELETE }
-            .sumOf { it.amount }
+            .filter { !it.isCanceled && it.syncStatus != SyncStatus.PENDING_DELETE }
+        val spent = active.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val income = active.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
 
-        val level = BudgetAlertLevel.of(spent, space.targetBudgetAmount)
+        // 수입이 있으면 쓸 수 있는 금액이 늘어나므로 그만큼 늦게 알림
+        val level = BudgetAlertLevel.of(spent, space.targetBudgetAmount + income)
         if (level == BudgetAlertLevel.NONE) return
 
         val periodStart = period.startDate.toString()
@@ -114,6 +118,7 @@ class CheckBudgetAlertUseCase(
                 level = level,
                 spent = spent,
                 target = space.targetBudgetAmount,
+                income = income,
                 remainingDays = period.remainingDays
             )
         )

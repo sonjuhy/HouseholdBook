@@ -15,7 +15,7 @@ data class PendingPaymentAlert(
     val canQuickSave: Boolean
 )
 
-/** 예산 알림 단계: 정산 주기마다 80%, 100%에서 한 번씩 */
+/** 예산 알림 단계: 정산 주기마다 쓸 수 있는 금액(목표 예산 + 수입)의 80%, 100%에서 한 번씩 */
 enum class BudgetAlertLevel(val percent: Int) {
     NONE(0),
     WARNING(80),
@@ -37,9 +37,13 @@ data class BudgetAlert(
     val level: BudgetAlertLevel,
     val spent: Long,
     val target: Long,
+    /** 이번 주기 수입 (쓸 수 있는 금액에 더해짐) */
+    val income: Long = 0L,
     val remainingDays: Int
 ) {
-    val remaining: Long get() = target - spent
+    /** 쓸 수 있는 금액 = 목표 예산 + 수입 */
+    val available: Long get() = target + income
+    val remaining: Long get() = available - spent
 }
 
 /** 마지막으로 보낸 예산 알림 (같은 주기에 같은 단계를 다시 보내지 않기 위함) */

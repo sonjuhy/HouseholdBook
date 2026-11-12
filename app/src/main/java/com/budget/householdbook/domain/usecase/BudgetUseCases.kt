@@ -42,9 +42,10 @@ class CalculateBudgetSummaryUseCase {
         val income = activeTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
         val transfer = activeTxs.filter { it.type == TransactionType.TRANSFER }.sumOf { it.amount }
 
-        val target = space.targetBudgetAmount
-        val remaining = target - spent
-        val usageRatio = if (target > 0L) (spent.toFloat() / target.toFloat()) else 0f
+        // 이번 주기에 들어온 수입만큼 쓸 수 있는 돈이 늘어남 (이체·제외는 영향 없음)
+        val available = space.targetBudgetAmount + income
+        val remaining = available - spent
+        val usageRatio = if (available > 0L) (spent.toFloat() / available.toFloat()) else 0f
         val dailyRecommended = if (remaining > 0L && period.remainingDays > 0) {
             remaining / period.remainingDays
         } else {
@@ -79,6 +80,7 @@ class CalculateBudgetSummaryUseCase {
             totalSpentAmount = spent,
             totalIncomeAmount = income,
             totalTransferAmount = transfer,
+            availableBudgetAmount = available,
             remainingBudgetAmount = remaining,
             budgetUsageRatio = usageRatio,
             recommendedDailyBudget = dailyRecommended,

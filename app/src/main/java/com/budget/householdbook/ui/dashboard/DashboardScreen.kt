@@ -210,7 +210,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = if (isOverBudget) "목표 초과 금액" else "남은 예산",
+                        text = if (isOverBudget) "예산 초과 금액" else "남은 예산",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = IosSystemGray
@@ -283,6 +283,30 @@ fun DashboardScreen(
                             maxLines = 1,
                             softWrap = false
                         )
+                    }
+
+                    // 이번 주기 수입: 쓸 수 있는 금액에 더해짐 (남은 예산 = 목표 예산 + 수입 - 지출)
+                    if (uiState.totalIncomeAmount > 0L) {
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "수입 (예산에 더함)",
+                                fontSize = 13.sp,
+                                color = IosSystemGray
+                            )
+                            Text(
+                                text = "+${CurrencyAndDateFormatter.formatWon(uiState.totalIncomeAmount)}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IncomeBlue,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))

@@ -190,6 +190,36 @@ class AlertUseCasesTest {
         check(personal, today)
         assertTrue(notifier.budgets.isEmpty())
         assertEquals(BudgetAlertLevel.NONE, BudgetAlertLevel.of(spent = 99_999, target = 0))
+
+        // 목표 예산이 없는 공간은 수입만 있고 지출이 많아도 알리지 않음
+        transactions.state.value = listOf(
+            expense(4, 50_000).copy(spaceId = personal, type = TransactionType.INCOME),
+            expense(5, 60_000).copy(spaceId = personal)
+        )
+        check(personal, today)
+        assertTrue(notifier.budgets.isEmpty())
+    }
+
+    @Test
+    fun `수입이 들어오면 쓸 수 있는 금액이 늘어 예산 알림이 그만큼 늦게 온다`() = runTest {
+        val check = CheckBudgetAlertUseCase(spaces, transactions, alertState, notifier)
+
+        // 목표 100,000 + 수입 50,000 = 150,000 중 85,000 (57%) → 알림 없음
+        transactions.state.value = listOf(
+            expense(1, 85_000),
+            expense(2, 50_000).copy(type = TransactionType.INCOME)
+        )
+        check(shared, today)
+        assertTrue(notifier.budgets.isEmpty())
+
+        // 125,000 / 150,000 (83%) → 80% 알림, 남은 금액은 수입까지 포함
+        transactions.state.value += expense(3, 40_000)
+        check(shared, today)
+        val alert = notifier.budgets.single()
+        assertEquals(BudgetAlertLevel.WARNING, alert.level)
+        assertEquals(50_000L, alert.income)
+        assertEquals(150_000L, alert.available)
+        assertEquals(25_000L, alert.remaining)
     }
 
     // ---------------- 자동 기록 멈춤 ----------------

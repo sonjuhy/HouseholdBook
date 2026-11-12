@@ -69,7 +69,7 @@ class BudgetMealAndSyncUseCasesTest {
     )
 
     @Test
-    fun `예산 요약은 취소되지 않은 지출만 합산하고 이체와 수입은 따로 집계한다`() {
+    fun `예산 요약은 취소되지 않은 지출만 합산하고 수입은 쓸 수 있는 금액에 더하며 이체는 따로 집계한다`() {
         val period = BillingCycleCalculator.calculatePeriod(baseDate = LocalDate.of(2026, 10, 18), billingStartDay = 1)
         val transactions = listOf(
             tx(1, 145_000, 1, 2),
@@ -86,11 +86,13 @@ class BudgetMealAndSyncUseCasesTest {
         assertEquals(213_900L, summary.totalSpentAmount)
         assertEquals(500_000L, summary.totalIncomeAmount)
         assertEquals(100_000L, summary.totalTransferAmount)
-        assertEquals(1_286_100L, summary.remainingBudgetAmount)
-        assertEquals(213_900f / 1_500_000f, summary.budgetUsageRatio, 0.0001f)
+        // 쓸 수 있는 금액 = 목표 1,500,000 + 수입 500,000
+        assertEquals(2_000_000L, summary.availableBudgetAmount)
+        assertEquals(1_786_100L, summary.remainingBudgetAmount)
+        assertEquals(213_900f / 2_000_000f, summary.budgetUsageRatio, 0.0001f)
         // 10.18 기준 남은 일수 14일 (10.18 ~ 10.31)
         assertEquals(14, period.remainingDays)
-        assertEquals(1_286_100L / 14, summary.recommendedDailyBudget)
+        assertEquals(1_786_100L / 14, summary.recommendedDailyBudget)
 
         assertEquals(listOf("식비", "주거/생활"), summary.categorySpendSummaries.map { it.parentCategory.name })
         val food = summary.categorySpendSummaries.first()
@@ -113,6 +115,27 @@ class BudgetMealAndSyncUseCasesTest {
         assertEquals(-20_000L, summary.remainingBudgetAmount)
         assertEquals(0L, summary.recommendedDailyBudget)
         assertTrue(summary.budgetUsageRatio > 1f)
+    }
+
+    @Test
+    fun `수입이 들어오면 초과했던 예산이 다시 남고 하루 권장 지출도 늘어난다`() {
+        val period = BillingCycleCalculator.calculatePeriod(baseDate = LocalDate.of(2026, 10, 18), billingStartDay = 1)
+        val summary = CalculateBudgetSummaryUseCase()(
+            sharedSpace.copy(targetBudgetAmount = 100_000L),
+            period,
+            listOf(
+                tx(1, 120_000, 1),
+                tx(2, 50_000, 5, type = TransactionType.INCOME),
+                tx(3, 30_000, 5, type = TransactionType.INCOME, canceled = true),
+                tx(4, 70_000, 1, type = TransactionType.TRANSFER)
+            ),
+            categories
+        )
+        // 취소된 수입과 이체는 더하지 않음: 100,000 + 50,000 - 120,000
+        assertEquals(150_000L, summary.availableBudgetAmount)
+        assertEquals(30_000L, summary.remainingBudgetAmount)
+        assertEquals(30_000L / 14, summary.recommendedDailyBudget)
+        assertEquals(120_000f / 150_000f, summary.budgetUsageRatio, 0.0001f)
     }
 
     @Test

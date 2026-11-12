@@ -50,11 +50,14 @@ data class CategorySpendSummary(
 
 /**
  * 정산 주기 기준 목표 예산 대비 지출 요약 (대시보드 핵심 지표)
+ * - 쓸 수 있는 금액 = 목표 예산 + 이번 주기 수입, 남은 예산 = 쓸 수 있는 금액 - 지출
  */
 data class BudgetSummary(
     val totalSpentAmount: Long = 0L,
     val totalIncomeAmount: Long = 0L,
     val totalTransferAmount: Long = 0L,
+    /** 목표 예산 + 수입 */
+    val availableBudgetAmount: Long = 0L,
     val remainingBudgetAmount: Long = 0L,
     val budgetUsageRatio: Float = 0f,
     val recommendedDailyBudget: Long = 0L,

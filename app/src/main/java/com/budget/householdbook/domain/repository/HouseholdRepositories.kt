@@ -212,6 +212,11 @@ interface LocalDataResetter {
     fun wipeAllLocalData()
 }
 
+/** 사용자가 고른 파일(문서 Uri 문자열)에 글을 저장 (CSV 내보내기) */
+interface ExportFileWriter {
+    suspend fun writeText(uri: String, text: String)
+}
+
 /** [Beta] KB국민은행 무로그인 빠른조회 (암호화 자격증명 + 스크래퍼) */
 interface KbQuickInquiryRepository {
     val credentialsFlow: StateFlow<QuickInquiryCredentials>

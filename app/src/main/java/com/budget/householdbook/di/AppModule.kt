@@ -30,6 +30,8 @@ import com.budget.householdbook.domain.repository.SettingsRepository
 import com.budget.householdbook.domain.repository.SharedSyncRepository
 import com.budget.householdbook.domain.repository.LocalDataResetter
 import com.budget.householdbook.data.local.AndroidLocalDataResetter
+import com.budget.householdbook.data.local.AndroidExportFileWriter
+import com.budget.householdbook.domain.repository.ExportFileWriter
 import com.budget.householdbook.domain.repository.TransactionRepository
 import com.budget.householdbook.domain.repository.TransactionRunner
 import com.budget.householdbook.domain.usecase.AccountUseCases
@@ -102,6 +104,7 @@ import com.budget.householdbook.domain.usecase.SyncOnAppStartUseCase
 import com.budget.householdbook.domain.usecase.SyncPendingSharedChangesUseCase
 import com.budget.householdbook.domain.usecase.SyncSharedChangesUseCase
 import com.budget.householdbook.domain.usecase.TransactionUseCases
+import com.budget.householdbook.domain.usecase.ExportTransactionsCsvUseCase
 import com.budget.householdbook.domain.usecase.UpdateCategoryUseCase
 import com.budget.householdbook.domain.usecase.UpdateKbAutoInquiryUseCase
 import com.budget.householdbook.domain.usecase.UpdateMealPriceConfigUseCase
@@ -158,6 +161,7 @@ val repositoryModule = module {
     singleOf(::RoomAutomationRuleRepository) { bind<AutomationRuleRepository>() }
     singleOf(::FirebaseSharedSyncRepository) { bind<SharedSyncRepository>() }
     single<LocalDataResetter> { AndroidLocalDataResetter(androidContext()) }
+    single<ExportFileWriter> { AndroidExportFileWriter(androidContext()) }
     // 은행별 빠른조회 연동 목록 (은행을 추가하면 여기에 등록)
     single<KbQuickInquiryRepository> {
         KbQuickInquiryRepositoryImpl(
@@ -208,6 +212,7 @@ val useCaseModule = module {
     factoryOf(::RestoreCanceledTransactionUseCase)
     factoryOf(::DeleteTransactionUseCase)
     factoryOf(::UpdateTransactionUseCase)
+    factoryOf(::ExportTransactionsCsvUseCase)
     factoryOf(::AddCategoryUseCase)
     factoryOf(::UpdateCategoryUseCase)
     factoryOf(::DeleteCategoryUseCase)

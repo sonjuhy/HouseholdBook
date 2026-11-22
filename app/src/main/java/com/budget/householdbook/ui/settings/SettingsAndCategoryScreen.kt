@@ -98,6 +98,7 @@ fun SettingsAndCategoryScreen(
     onUpdateKbAutoInquiry: (enabled: Boolean, intervalHours: Int) -> Unit,
     onRemoveIgnoredKeyword: (Long) -> Unit,
     onInsertSampleData: () -> Unit,
+    onExportCsv: (uri: String, spaceIds: List<String>, fromMonthOffset: Int, toMonthOffset: Int) -> Unit,
     onReplayOnboarding: () -> Unit,
     onUpdateEnabledInstitutions: (Set<String>) -> Unit,
     onUpdateExcludedSources: (excludedIds: Set<String>, autoFilterDuplicates: Boolean) -> Unit,
@@ -615,6 +616,15 @@ fun SettingsAndCategoryScreen(
                     )
                 }
             }
+        }
+
+        // 5. 거래 내역 CSV 내보내기 (정산 주기 한 달 단위 범위)
+        item {
+            CsvExportCard(
+                spaces = uiState.spaces,
+                currentSpaceId = uiState.currentSpace.id,
+                onExport = onExportCsv
+            )
         }
 
         // 6. 앱 체험용 예시 데이터 (첫 실행 때 자동으로 넣지 않음)

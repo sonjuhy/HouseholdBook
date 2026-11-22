@@ -475,6 +475,23 @@ class MainViewModel(
         }
     }
 
+    /** 고른 장부·정산 주기 범위의 내역을 사용자가 고른 파일([uri])에 CSV로 저장 */
+    fun exportTransactionsCsv(uri: String, spaceIds: List<String>, fromMonthOffset: Int, toMonthOffset: Int) {
+        viewModelScope.launch {
+            runCatching {
+                transactions.exportCsv(uri, spaceIds, fromMonthOffset, toMonthOffset)
+            }.onSuccess { result ->
+                _snackbarMessage.value = if (result.rowCount == 0) {
+                    "이 기간에는 내역이 없어 제목 줄만 저장했어요."
+                } else {
+                    "내역 ${result.rowCount}건을 CSV 파일로 저장했어요."
+                }
+            }.onFailure {
+                _snackbarMessage.value = "CSV 파일을 저장하지 못했어요. ${it.message.orEmpty()}".trim()
+            }
+        }
+    }
+
     fun addCategory(
         spaceId: String,
         parentId: Long?,

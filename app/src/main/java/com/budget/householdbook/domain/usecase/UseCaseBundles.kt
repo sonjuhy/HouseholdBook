@@ -24,13 +24,14 @@ data class PendingQueueUseCases(
     val updateClassification: UpdatePendingClassificationUseCase
 )
 
-/** 확정 거래 (직접 입력 / 취소 / 삭제) */
+/** 확정 거래 (직접 입력 / 취소 / 삭제 / CSV 내보내기) */
 data class TransactionUseCases(
     val addManual: AddManualTransactionUseCase,
     val cancel: CancelTransactionUseCase,
     val restoreCancel: RestoreCanceledTransactionUseCase,
     val delete: DeleteTransactionUseCase,
-    val update: UpdateTransactionUseCase
+    val update: UpdateTransactionUseCase,
+    val exportCsv: ExportTransactionsCsvUseCase
 )
 
 /** 카테고리 CRUD */
